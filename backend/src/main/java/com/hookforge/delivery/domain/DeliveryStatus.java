@@ -1,4 +1,10 @@
 package com.hookforge.delivery.domain;
 
-public class DeliveryStatus {
+public enum DeliveryStatus {
+    PENDING,
+    PROCESSING,
+    RETRYING,
+    SUCCEEDED,
+    FAILED,
+    DEAD
 }
