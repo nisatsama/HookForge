@@ -1,138 +1,100 @@
 
 package com.hookforge.endpoint.application;
 
-import com.hookforge.endpoint.api.dto.CreateEndpointRequest;
-import com.hookforge.endpoint.api.dto.EndpointResponse;
-import com.hookforge.endpoint.api.dto.UpdateEndpointRequest;
 import com.hookforge.endpoint.domain.WebhookEndpoint;
 import com.hookforge.endpoint.infrastructure.EndpointRepository;
+import com.hookforge.security.WebhookSecretEncryptionService;
+import com.hookforge.webhook.DestinationSecurityService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.HexFormat;
-import java.util.List;
 import java.util.UUID;
 
 @Service
-@Transactional
 public class EndpointService {
 
     private final EndpointRepository endpointRepository;
+    private final WebhookSecretEncryptionService encryptionService;
+    private final DestinationSecurityService destinationSecurityService;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    public EndpointService(EndpointRepository endpointRepository) {
+    public EndpointService(
+            EndpointRepository endpointRepository,
+            WebhookSecretEncryptionService encryptionService,
+            DestinationSecurityService destinationSecurityService
+    ) {
         this.endpointRepository = endpointRepository;
+        this.encryptionService = encryptionService;
+        this.destinationSecurityService = destinationSecurityService;
     }
 
-    public EndpointResponse create(
+    @Transactional
+    public CreatedEndpoint createEndpoint(
             UUID tenantId,
-            CreateEndpointRequest request
+            String name,
+            String url
     ) {
-        validateUrl(request.url());
+        if (tenantId == null) {
+            throw new IllegalArgumentException("Tenant ID is required");
+        }
 
-        String secretHash = generateSecretHash();
+        if (name == null || name.isBlank() || name.length() > 150) {
+            throw new IllegalArgumentException(
+                    "Endpoint name must contain 1–150 characters"
+            );
+        }
+
+        destinationSecurityService.validateDestination(url);
+
+        String secret = generateSecret();
+        String secretHash = hashSecret(secret);
+        String encryptedSecret = encryptionService.encrypt(secret);
 
         WebhookEndpoint endpoint = new WebhookEndpoint(
                 tenantId,
-                request.name().trim(),
-                request.url().trim(),
-                secretHash
+                name.trim(),
+                url,
+                secretHash,
+                encryptedSecret
         );
 
-        return EndpointResponse.from(endpointRepository.save(endpoint));
+        WebhookEndpoint saved = endpointRepository.save(endpoint);
+
+        // Return the plaintext secret only once at creation.
+        return new CreatedEndpoint(saved, secret);
     }
 
-    @Transactional(readOnly = true)
-    public List<EndpointResponse> list(UUID tenantId) {
-        return endpointRepository
-                .findAllByTenantIdOrderByCreatedAtDesc(tenantId)
-                .stream()
-                .map(EndpointResponse::from)
-                .toList();
+    private String generateSecret() {
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+
+        return "whsec_" +
+                Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    @Transactional(readOnly = true)
-    public EndpointResponse get(UUID tenantId, UUID endpointId) {
-        return EndpointResponse.from(findEndpoint(tenantId, endpointId));
-    }
-
-    public EndpointResponse update(
-            UUID tenantId,
-            UUID endpointId,
-            UpdateEndpointRequest request
-    ) {
-        validateUrl(request.url());
-
-        WebhookEndpoint endpoint = findEndpoint(tenantId, endpointId);
-        endpoint.updateDetails(
-                request.name().trim(),
-                request.url().trim()
-        );
-
-        return EndpointResponse.from(endpointRepository.save(endpoint));
-    }
-
-    public EndpointResponse disable(UUID tenantId, UUID endpointId) {
-        WebhookEndpoint endpoint = findEndpoint(tenantId, endpointId);
-        endpoint.changeStatus(WebhookEndpoint.Status.DISABLED);
-
-        return EndpointResponse.from(endpointRepository.save(endpoint));
-    }
-
-    public EndpointResponse enable(UUID tenantId, UUID endpointId) {
-        WebhookEndpoint endpoint = findEndpoint(tenantId, endpointId);
-        endpoint.changeStatus(WebhookEndpoint.Status.ACTIVE);
-
-        return EndpointResponse.from(endpointRepository.save(endpoint));
-    }
-
-    private WebhookEndpoint findEndpoint(UUID tenantId, UUID endpointId) {
-        return endpointRepository.findByIdAndTenantId(endpointId, tenantId)
-                .orElseThrow(() -> new EndpointNotFoundException(endpointId));
-    }
-
-    private void validateUrl(String value) {
+    private String hashSecret(String secret) {
         try {
-            URI uri = URI.create(value.trim());
-
-            String scheme = uri.getScheme();
-            if (scheme == null
-                    || !(scheme.equalsIgnoreCase("https")
-                    || scheme.equalsIgnoreCase("http"))
-                    || uri.getHost() == null
-                    || uri.getUserInfo() != null
-                    || uri.getFragment() != null) {
-                throw new IllegalArgumentException(
-                        "URL must be an absolute HTTP or HTTPS URL"
-                );
-            }
-        } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException(
-                    "Invalid endpoint URL: provide a valid HTTP or HTTPS URL",
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(
+                    secret.getBytes(StandardCharsets.UTF_8)
+            );
+            return HexFormat.of().formatHex(hash);
+        } catch (java.security.NoSuchAlgorithmException ex) {
+            throw new IllegalStateException(
+                    "SHA-256 is unavailable",
                     ex
             );
         }
     }
 
-    private String generateSecretHash() {
-        byte[] secret = new byte[32];
-        secureRandom.nextBytes(secret);
-
-        try {
-            byte[] hash = MessageDigest.getInstance("SHA-256").digest(secret);
-            return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 is unavailable", ex);
-        }
-    }
-
-    public static class EndpointNotFoundException extends RuntimeException {
-        public EndpointNotFoundException(UUID endpointId) {
-            super("Endpoint not found: " + endpointId);
-        }
+    public record CreatedEndpoint(
+            WebhookEndpoint endpoint,
+            String secret
+    ) {
     }
 }
