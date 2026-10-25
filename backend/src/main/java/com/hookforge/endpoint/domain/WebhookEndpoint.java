@@ -1,15 +1,7 @@
 
 package com.hookforge.endpoint.domain;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -36,8 +28,11 @@ public class WebhookEndpoint {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String url;
 
-    @Column(name = "secret_hash", nullable = false)
+    @Column(name = "secret_hash", nullable = false, length = 255)
     private String secretHash;
+
+    @Column(name = "secret_encrypted", columnDefinition = "TEXT")
+    private String secretEncrypted;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -50,7 +45,6 @@ public class WebhookEndpoint {
     private Instant updatedAt;
 
     protected WebhookEndpoint() {
-        // Required by JPA
     }
 
     public WebhookEndpoint(
@@ -59,18 +53,40 @@ public class WebhookEndpoint {
             String url,
             String secretHash
     ) {
+        this(tenantId, name, url, secretHash, null);
+    }
+
+    public WebhookEndpoint(
+            UUID tenantId,
+            String name,
+            String url,
+            String secretHash,
+            String secretEncrypted
+    ) {
         this.tenantId = tenantId;
         this.name = name;
         this.url = url;
         this.secretHash = secretHash;
+        this.secretEncrypted = secretEncrypted;
         this.status = Status.ACTIVE;
-        this.createdAt = Instant.now();
-        this.updatedAt = this.createdAt;
+    }
+
+    @PrePersist
+    protected void onCreate() {
+        Instant now = Instant.now();
+
+        if (createdAt == null) {
+            createdAt = now;
+        }
+
+        if (updatedAt == null) {
+            updatedAt = now;
+        }
     }
 
     @PreUpdate
     protected void onUpdate() {
-        this.updatedAt = Instant.now();
+        updatedAt = Instant.now();
     }
 
     public void updateDetails(String name, String url) {
@@ -79,6 +95,9 @@ public class WebhookEndpoint {
     }
 
     public void changeStatus(Status status) {
+        if (status == null) {
+            throw new IllegalArgumentException("Status cannot be null");
+        }
         this.status = status;
     }
 
@@ -100,6 +119,10 @@ public class WebhookEndpoint {
 
     public String getSecretHash() {
         return secretHash;
+    }
+
+    public String getSecretEncrypted() {
+        return secretEncrypted;
     }
 
     public Status getStatus() {
