@@ -86,4 +86,16 @@ public class OutboxEvent {
     public Instant getPublishedAt() {
         return publishedAt;
     }
+    public void markPublished() {
+        this.status = OutboxStatus.PUBLISHED;
+        this.publishedAt = Instant.now();
+    }
+
+    public void recordFailedAttempt(int maxAttempts) {
+        this.attempts++;
+
+        if (this.attempts >= maxAttempts) {
+            this.status = OutboxStatus.FAILED;
+        }
+    }
 }
