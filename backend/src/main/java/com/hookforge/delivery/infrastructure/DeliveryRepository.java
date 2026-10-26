@@ -7,11 +7,12 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface DeliveryRepository
         extends JpaRepository<Delivery, UUID> {
-
+    Optional<Delivery> findByIdAndTenantId(UUID id, UUID tenantId);
     @Modifying
     @Query(value = """
         INSERT INTO webhook_deliveries (
