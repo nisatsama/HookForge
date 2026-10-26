@@ -1,4 +1,5 @@
-package com.hookforge.event.application;
+
+        package com.hookforge.event.application;
 
 import com.hookforge.event.api.dto.CreateEventRequest;
 import com.hookforge.event.api.dto.EventResponse;
@@ -6,7 +7,7 @@ import com.hookforge.event.domain.WebhookEvent;
 import com.hookforge.event.infrastructure.WebhookEventRepository;
 import com.hookforge.outbox.domain.OutboxEvent;
 import com.hookforge.outbox.infrastructure.OutboxEventRepository;
-import com.hookforge.tenant.application.TenantContext;
+import com.hookforge.security.TenantContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -15,16 +16,13 @@ public class EventService {
 
     private final WebhookEventRepository eventRepository;
     private final OutboxEventRepository outboxRepository;
-    private final TenantContext tenantContext;
 
     public EventService(
             WebhookEventRepository eventRepository,
-            OutboxEventRepository outboxRepository,
-            TenantContext tenantContext
+            OutboxEventRepository outboxRepository
     ) {
         this.eventRepository = eventRepository;
         this.outboxRepository = outboxRepository;
-        this.tenantContext = tenantContext;
     }
 
     @Transactional
@@ -44,7 +42,7 @@ public class EventService {
             }
         }
 
-        var tenantId = tenantContext.getTenantId();
+        var tenantId = TenantContext.getTenantId();
 
         // Return the existing event for a repeated idempotency key.
         if (idempotencyKey != null) {
