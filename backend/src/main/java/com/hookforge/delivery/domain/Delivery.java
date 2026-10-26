@@ -1,10 +1,12 @@
 package com.hookforge.delivery.domain;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.time.Instant;
 import java.util.UUID;
-
+@Getter
 @Entity
 @Table(
         name = "webhook_deliveries",
@@ -13,6 +15,7 @@ import java.util.UUID;
                 columnNames = {"event_id", "endpoint_id"}
         )
 )
+
 public class Delivery {
 
     @Id

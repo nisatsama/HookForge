@@ -95,4 +95,5 @@ public interface DeliveryRepository
             @Param("batchSize") int batchSize
     );
 
+    boolean existsByEventIdAndEndpointId(UUID eventId, UUID endpointId);
 }

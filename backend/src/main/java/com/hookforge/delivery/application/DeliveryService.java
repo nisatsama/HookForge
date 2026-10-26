@@ -1,7 +1,7 @@
 
 package com.hookforge.delivery.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
+//import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hookforge.delivery.domain.Delivery;
 import com.hookforge.delivery.domain.DeliveryAttempt;
@@ -49,12 +49,33 @@ public class DeliveryService {
         this.webhookHttpClient = webhookHttpClient;
         this.objectMapper = objectMapper;
     }
+    @Transactional
+    public boolean createIfAbsent(
+            UUID eventId,
+            UUID endpointId,
+            UUID tenantId
+    ) {
+        if (deliveryRepository.existsByEventIdAndEndpointId(
+                eventId,
+                endpointId
+        )) {
+            return false;
+        }
 
+        Delivery delivery = new Delivery(
+                eventId,
+                endpointId,
+                tenantId
+        );
+
+        deliveryRepository.save(delivery);
+        return true;
+    }
     @Transactional
     public void processDelivery(UUID deliveryId) {
     processDelivery(deliveryId,false);
     }
-    public void processClaimeddelivery(UUID deliveryId){
+    public void processClaimedDelivery(UUID deliveryId){
         processDelivery(deliveryId,true);
     }
     private void processDelivery(UUID deliveryId,boolean alreadyClaimed){
@@ -129,7 +150,7 @@ public class DeliveryService {
                 handleFailure(delivery, attemptNumber);
             }
 
-        } catch (JsonProcessingException | IOException ex) {
+        } catch (IOException ex) {
             long durationMs = elapsedMillis(startedNanos);
 
             attempt.complete(

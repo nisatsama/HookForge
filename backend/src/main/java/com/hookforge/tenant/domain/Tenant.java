@@ -1,10 +1,13 @@
 package com.hookforge.tenant.domain;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
+@Getter
 @Table(name = "tenants")
 public class Tenant {
 
