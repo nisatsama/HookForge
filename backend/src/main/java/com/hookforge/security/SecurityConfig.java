@@ -1,10 +1,7 @@
 package com.hookforge.security;
 
-import com.hookforge.identity.application.ApiKeyService;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
@@ -14,41 +11,39 @@ import org.springframework.security.web.authentication
 @Configuration
 public class SecurityConfig {
 
-    @Bean
-    public ApiKeyAuthenticationFilter apiKeyAuthenticationFilter(
-            ApiKeyService apiKeyService
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
+
+    public SecurityConfig(
+            ApiKeyAuthenticationFilter apiKeyAuthenticationFilter
     ) {
-        return new ApiKeyAuthenticationFilter(apiKeyService);
+        this.apiKeyAuthenticationFilter = apiKeyAuthenticationFilter;
     }
 
     @Bean
     public SecurityFilterChain securityFilterChain(
-            HttpSecurity http,
-            ApiKeyAuthenticationFilter apiKeyAuthenticationFilter,
-            AuthenticationEntryPointHandler entryPointHandler
+            HttpSecurity http
     ) throws Exception {
 
-        http
+        return http
                 .csrf(csrf -> csrf.disable())
-                .httpBasic(basic -> basic.disable())
                 .formLogin(form -> form.disable())
-                .logout(logout -> logout.disable())
+                .httpBasic(basic -> basic.disable())
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(
-                                SessionCreationPolicy.STATELESS))
-                .exceptionHandling(exceptions -> exceptions
-                        .authenticationEntryPoint(entryPointHandler))
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/actuator/health",
                                 "/actuator/info"
                         ).permitAll()
-                        .anyRequest().authenticated())
+                        .anyRequest().authenticated()
+                )
                 .addFilterBefore(
                         apiKeyAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class
-                );
-
-        return http.build();
+                )
+                .build();
     }
 }
