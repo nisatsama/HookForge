@@ -122,4 +122,33 @@ public class Delivery {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    public void beginAttempt() {
+        this.status = DeliveryStatus.PROCESSING;
+        this.attemptCount++;
+        this.lastAttemptAt = Instant.now();
+        this.nextAttemptAt = null;
+    }
+
+    public void markSucceeded() {
+        this.status = DeliveryStatus.SUCCEEDED;
+        this.deliveredAt = Instant.now();
+        this.nextAttemptAt = null;
+    }
+
+    public void scheduleRetry(Instant retryAt) {
+        this.status = DeliveryStatus.RETRYING;
+        this.nextAttemptAt = retryAt;
+    }
+
+    public void markDead() {
+        this.status = DeliveryStatus.DEAD;
+        this.nextAttemptAt = null;
+    }
+
+    public void markFailed() {
+        this.status = DeliveryStatus.FAILED;
+        this.nextAttemptAt = null;
+    }
+
 }
