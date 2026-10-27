@@ -1,6 +1,4 @@
-
-        package com.hookforge.event.application;
-
+package com.hookforge.event.application;
 import com.hookforge.event.api.dto.CreateEventRequest;
 import com.hookforge.event.api.dto.EventResponse;
 import com.hookforge.event.domain.WebhookEvent;

@@ -5,8 +5,10 @@ import com.hookforge.endpoint.api.dto.CreateEndpointRequest;
 import com.hookforge.endpoint.api.dto.EndpointResponse;
 import com.hookforge.endpoint.api.dto.UpdateEndpointRequest;
 import com.hookforge.endpoint.application.EndpointService;
+import com.hookforge.security.AuthenticatedTenant;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,49 +27,66 @@ public class EndpointController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public EndpointResponse create(
-            @RequestHeader("X-Tenant-Id") UUID tenantId,
+            @AuthenticationPrincipal AuthenticatedTenant principal,
             @Valid @RequestBody CreateEndpointRequest request
     ) {
-        return endpointService.create(tenantId, request);
+        return endpointService.create(
+                requireTenant(principal),
+                request
+        );
     }
 
     @GetMapping
     public List<EndpointResponse> list(
-            @RequestHeader("X-Tenant-Id") UUID tenantId
+            @AuthenticationPrincipal AuthenticatedTenant principal
     ) {
-        return endpointService.list(tenantId);
+        return endpointService.list(requireTenant(principal));
     }
 
     @GetMapping("/{id}")
     public EndpointResponse get(
-            @RequestHeader("X-Tenant-Id") UUID tenantId,
+            @AuthenticationPrincipal AuthenticatedTenant principal,
             @PathVariable UUID id
     ) {
-        return endpointService.get(tenantId, id);
+        return endpointService.get(requireTenant(principal), id);
     }
 
     @PutMapping("/{id}")
     public EndpointResponse update(
-            @RequestHeader("X-Tenant-Id") UUID tenantId,
+            @AuthenticationPrincipal AuthenticatedTenant principal,
             @PathVariable UUID id,
             @Valid @RequestBody UpdateEndpointRequest request
     ) {
-        return endpointService.update(tenantId, id, request);
+        return endpointService.update(
+                requireTenant(principal),
+                id,
+                request
+        );
     }
 
     @PatchMapping("/{id}/disable")
     public EndpointResponse disable(
-            @RequestHeader("X-Tenant-Id") UUID tenantId,
+            @AuthenticationPrincipal AuthenticatedTenant principal,
             @PathVariable UUID id
     ) {
-        return endpointService.disable(tenantId, id);
+        return endpointService.disable(requireTenant(principal), id);
     }
 
     @PatchMapping("/{id}/enable")
     public EndpointResponse enable(
-            @RequestHeader("X-Tenant-Id") UUID tenantId,
+            @AuthenticationPrincipal AuthenticatedTenant principal,
             @PathVariable UUID id
     ) {
-        return endpointService.enable(tenantId, id);
+        return endpointService.enable(requireTenant(principal), id);
+    }
+
+    private UUID requireTenant(AuthenticatedTenant principal) {
+        if (principal == null || principal.tenantId() == null) {
+            throw new org.springframework.security.access.AccessDeniedException(
+                    "Authenticated tenant is required"
+            );
+        }
+
+        return principal.tenantId();
     }
 }

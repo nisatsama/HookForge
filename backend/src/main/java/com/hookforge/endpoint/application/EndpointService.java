@@ -218,7 +218,7 @@ public class EndpointService {
         byte[] bytes = new byte[32];
         secureRandom.nextBytes(bytes);
 
-        return "whose_" +
+        return "whsec_" +
                 Base64.getUrlEncoder()
                         .withoutPadding()
                         .encodeToString(bytes);
