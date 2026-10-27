@@ -1,16 +1,18 @@
-package com.hookforge.outbox;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+        package com.hookforge.outbox;
+
 import com.hookforge.outbox.domain.OutboxEvent;
-import com.hookforge.outbox.domain.OutboxStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -63,7 +65,7 @@ public class OutboxPublisher {
                         )
                 );
 
-                // Wait for Kafka's send result before marking the row published.
+                // Wait for Kafka acknowledgement before marking published.
                 kafkaTemplate.send(
                         topic,
                         event.getEventId().toString(),
@@ -82,7 +84,7 @@ public class OutboxPublisher {
                         event.getEventId()
                 );
 
-            } catch (JsonProcessingException
+            } catch (JacksonException
                      | ExecutionException
                      | TimeoutException ex) {
 
@@ -91,8 +93,6 @@ public class OutboxPublisher {
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 recordFailure(event, ex);
-
-                // Do not start more sends after this thread is interrupted.
                 break;
 
             } catch (RuntimeException ex) {
@@ -100,8 +100,6 @@ public class OutboxPublisher {
             }
         }
 
-        // Entities are managed in this transaction; their changes are flushed
-        // when the transaction commits.
         return publishedCount;
     }
 
@@ -121,8 +119,8 @@ public class OutboxPublisher {
             String outboxId,
             String eventId,
             String eventType,
-            com.fasterxml.jackson.databind.JsonNode payload,
-            java.time.Instant createdAt
+            JsonNode payload,
+            Instant createdAt
     ) {
     }
 }

@@ -1,13 +1,18 @@
-package com.hookforge.messaging;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+        package com.hookforge.messaging;
+
 import com.hookforge.outbox.domain.OutboxEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
+import java.time.Instant;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Component
 public class DeliveryEventProducer {
@@ -45,19 +50,19 @@ public class DeliveryEventProducer {
                     json
             ).get(10, TimeUnit.SECONDS);
 
-        } catch (JsonProcessingException ex) {
+        } catch (JacksonException ex) {
             throw new IllegalStateException(
                     "Could not serialize outbox event " + event.getId(),
                     ex
             );
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
+
             throw new IllegalStateException(
                     "Interrupted while publishing outbox event " + event.getId(),
                     ex
             );
-        } catch (java.util.concurrent.ExecutionException
-                 | java.util.concurrent.TimeoutException ex) {
+        } catch (ExecutionException | TimeoutException ex) {
             throw new IllegalStateException(
                     "Could not publish outbox event " + event.getId(),
                     ex
@@ -69,8 +74,8 @@ public class DeliveryEventProducer {
             String outboxId,
             String eventId,
             String eventType,
-            com.fasterxml.jackson.databind.JsonNode payload,
-            java.time.Instant createdAt
+            JsonNode payload,
+            Instant createdAt
     ) {
     }
 }

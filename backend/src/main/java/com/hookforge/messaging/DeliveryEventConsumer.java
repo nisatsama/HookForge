@@ -1,12 +1,13 @@
 package com.hookforge.messaging;
-
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.JsonNode;
+//import com.fasterxml.jackson.databind.JsonNode;
+//import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hookforge.event.application.EventRoutingService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -46,7 +47,7 @@ public class DeliveryEventConsumer {
 
             eventId = UUID.fromString(eventIdNode.asText());
 
-        } catch (IOException | IllegalArgumentException ex) {
+        } catch (IllegalArgumentException ex) {
             log.error("Invalid webhook event message received from Kafka", ex);
             throw new IllegalArgumentException(
                     "Invalid webhook event message",
