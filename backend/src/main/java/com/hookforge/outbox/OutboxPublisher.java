@@ -1,5 +1,5 @@
 
-        package com.hookforge.outbox;
+package com.hookforge.outbox;
 
 import com.hookforge.outbox.domain.OutboxEvent;
 import org.slf4j.Logger;
@@ -9,8 +9,8 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.core.JacksonException;
-import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
 import java.util.List;
@@ -30,19 +30,22 @@ public class OutboxPublisher {
 
     private final OutboxRepository outboxRepository;
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper jackson3Mapper;
+    private final com.fasterxml.jackson.databind.ObjectMapper jackson2Mapper;
     private final String topic;
 
     public OutboxPublisher(
             OutboxRepository outboxRepository,
             KafkaTemplate<String, String> kafkaTemplate,
-            ObjectMapper objectMapper,
+            ObjectMapper jackson3Mapper,
+            com.fasterxml.jackson.databind.ObjectMapper jackson2Mapper,
             @Value("${hookforge.kafka.outbox-topic:hookforge.outbox-events}")
             String topic
     ) {
         this.outboxRepository = outboxRepository;
         this.kafkaTemplate = kafkaTemplate;
-        this.objectMapper = objectMapper;
+        this.jackson3Mapper = jackson3Mapper;
+        this.jackson2Mapper = jackson2Mapper;
         this.topic = topic;
     }
 
@@ -55,17 +58,21 @@ public class OutboxPublisher {
 
         for (OutboxEvent event : events) {
             try {
-                String message = objectMapper.writeValueAsString(
-                        new OutboxMessage(
-                                event.getId().toString(),
-                                event.getEventId().toString(),
-                                event.getEventType(),
-                                event.getPayload(),
-                                event.getCreatedAt()
-                        )
+                JsonNode payload = jackson3Mapper.readTree(
+                        jackson2Mapper.writeValueAsString(event.getPayload())
                 );
 
-                // Wait for Kafka acknowledgement before marking published.
+                OutboxMessage outboxMessage = new OutboxMessage(
+                        event.getId().toString(),
+                        event.getEventId().toString(),
+                        event.getEventType(),
+                        payload,
+                        event.getCreatedAt()
+                );
+
+                String message =
+                        jackson3Mapper.writeValueAsString(outboxMessage);
+
                 kafkaTemplate.send(
                         topic,
                         event.getEventId().toString(),
@@ -84,10 +91,12 @@ public class OutboxPublisher {
                         event.getEventId()
                 );
 
-            } catch (JacksonException
-                     | ExecutionException
-                     | TimeoutException ex) {
-
+            } catch (
+                    JacksonException
+                    | com.fasterxml.jackson.core.JsonProcessingException
+                    | ExecutionException
+                    | TimeoutException ex
+            ) {
                 recordFailure(event, ex);
 
             } catch (InterruptedException ex) {

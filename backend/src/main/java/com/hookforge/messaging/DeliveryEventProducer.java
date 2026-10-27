@@ -1,5 +1,5 @@
 
-        package com.hookforge.messaging;
+package com.hookforge.messaging;
 
 import com.hookforge.outbox.domain.OutboxEvent;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,31 +18,38 @@ import java.util.concurrent.TimeoutException;
 public class DeliveryEventProducer {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper;
+    private final ObjectMapper jackson3Mapper;
+    private final com.fasterxml.jackson.databind.ObjectMapper jackson2Mapper;
     private final String topic;
 
     public DeliveryEventProducer(
             KafkaTemplate<String, String> kafkaTemplate,
-            ObjectMapper objectMapper,
+            ObjectMapper jackson3Mapper,
+            com.fasterxml.jackson.databind.ObjectMapper jackson2Mapper,
             @Value("${hookforge.kafka.outbox-topic:hookforge.outbox-events}")
             String topic
     ) {
         this.kafkaTemplate = kafkaTemplate;
-        this.objectMapper = objectMapper;
+        this.jackson3Mapper = jackson3Mapper;
+        this.jackson2Mapper = jackson2Mapper;
         this.topic = topic;
     }
 
     public void publish(OutboxEvent event) {
-        OutboxMessage message = new OutboxMessage(
-                event.getId().toString(),
-                event.getEventId().toString(),
-                event.getEventType(),
-                event.getPayload(),
-                event.getCreatedAt()
-        );
-
         try {
-            String json = objectMapper.writeValueAsString(message);
+            JsonNode payload = jackson3Mapper.readTree(
+                    jackson2Mapper.writeValueAsString(event.getPayload())
+            );
+
+            OutboxMessage message = new OutboxMessage(
+                    event.getId().toString(),
+                    event.getEventId().toString(),
+                    event.getEventType(),
+                    payload,
+                    event.getCreatedAt()
+            );
+
+            String json = jackson3Mapper.writeValueAsString(message);
 
             kafkaTemplate.send(
                     topic,
@@ -50,7 +57,10 @@ public class DeliveryEventProducer {
                     json
             ).get(10, TimeUnit.SECONDS);
 
-        } catch (JacksonException ex) {
+        } catch (
+                JacksonException
+                | com.fasterxml.jackson.core.JsonProcessingException ex
+        ) {
             throw new IllegalStateException(
                     "Could not serialize outbox event " + event.getId(),
                     ex

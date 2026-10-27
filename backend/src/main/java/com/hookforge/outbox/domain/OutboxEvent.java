@@ -1,7 +1,12 @@
 package com.hookforge.outbox.domain;
-import tools.jackson.databind.JsonNode;
+//import tools.jackson.databind.JsonNode;
 //import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
+// Remove:
+// import tools.jackson.databind.JsonNode;
+
+// Use:
+import com.fasterxml.jackson.databind.JsonNode;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 

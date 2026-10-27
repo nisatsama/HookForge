@@ -1,4 +1,6 @@
+
 package com.hookforge.event.application;
+
 import com.hookforge.event.api.dto.CreateEventRequest;
 import com.hookforge.event.api.dto.EventResponse;
 import com.hookforge.event.domain.WebhookEvent;
@@ -15,12 +17,19 @@ public class EventService {
     private final WebhookEventRepository eventRepository;
     private final OutboxEventRepository outboxRepository;
 
+    private final tools.jackson.databind.ObjectMapper jackson3Mapper;
+    private final com.fasterxml.jackson.databind.ObjectMapper jackson2Mapper;
+
     public EventService(
             WebhookEventRepository eventRepository,
-            OutboxEventRepository outboxRepository
+            OutboxEventRepository outboxRepository,
+            tools.jackson.databind.ObjectMapper jackson3Mapper,
+            com.fasterxml.jackson.databind.ObjectMapper jackson2Mapper
     ) {
         this.eventRepository = eventRepository;
         this.outboxRepository = outboxRepository;
+        this.jackson3Mapper = jackson3Mapper;
+        this.jackson2Mapper = jackson2Mapper;
     }
 
     @Transactional
@@ -42,7 +51,6 @@ public class EventService {
 
         var tenantId = TenantContext.getTenantId();
 
-        // Return the existing event for a repeated idempotency key.
         if (idempotencyKey != null) {
             var existing = eventRepository
                     .findByTenantIdAndIdempotencyKey(
@@ -53,40 +61,77 @@ public class EventService {
             if (existing.isPresent()) {
                 WebhookEvent event = existing.get();
 
-                return new EventResponse(
-                        event.getId(),
-                        event.getEventType(),
-                        event.getPayload(),
-                        event.getCreatedAt(),
-                        false
-                );
+                return toResponse(event, false);
             }
         }
 
-        WebhookEvent event = new WebhookEvent(
-                tenantId,
-                request.eventType(),
-                idempotencyKey,
-                request.payload()
-        );
+        try {
+            // Convert the HTTP payload (Jackson 3) to the
+            // Jackson 2 tree type used by Hibernate persistence.
+            com.fasterxml.jackson.databind.JsonNode persistedPayload =
+                    jackson2Mapper.readTree(
+                            jackson3Mapper.writeValueAsString(request.payload())
+                    );
 
-        WebhookEvent savedEvent = eventRepository.save(event);
+            WebhookEvent event = new WebhookEvent(
+                    tenantId,
+                    request.eventType(),
+                    idempotencyKey,
+                    persistedPayload
+            );
 
-        // The event and outbox record must commit or roll back together.
-        OutboxEvent outboxEvent = new OutboxEvent(
-                savedEvent.getId(),
-                savedEvent.getEventType(),
-                savedEvent.getPayload()
-        );
+            WebhookEvent savedEvent = eventRepository.save(event);
 
-        outboxRepository.save(outboxEvent);
+            // Save the outbox row in the same transaction.
+            OutboxEvent outboxEvent = new OutboxEvent(
+                    savedEvent.getId(),
+                    savedEvent.getEventType(),
+                    savedEvent.getPayload()
+            );
 
-        return new EventResponse(
-                savedEvent.getId(),
-                savedEvent.getEventType(),
-                savedEvent.getPayload(),
-                savedEvent.getCreatedAt(),
-                true
-        );
+            outboxRepository.save(outboxEvent);
+
+            return toResponse(savedEvent, true);
+
+        } catch (
+                tools.jackson.core.JacksonException
+                | com.fasterxml.jackson.core.JsonProcessingException ex
+        ) {
+            throw new IllegalStateException(
+                    "Failed to convert event payload between Jackson versions",
+                    ex
+            );
+        }
+    }
+
+    private EventResponse toResponse(
+            WebhookEvent event,
+            boolean created
+    ) {
+        try {
+            // Convert the persisted Jackson 2 tree back to Jackson 3
+            // for the Spring Boot 4 API response.
+            tools.jackson.databind.JsonNode responsePayload =
+                    jackson3Mapper.readTree(
+                            jackson2Mapper.writeValueAsString(event.getPayload())
+                    );
+
+            return new EventResponse(
+                    event.getId(),
+                    event.getEventType(),
+                    responsePayload,
+                    event.getCreatedAt(),
+                    created
+            );
+
+        } catch (
+                tools.jackson.core.JacksonException
+                | com.fasterxml.jackson.core.JsonProcessingException ex
+        ) {
+            throw new IllegalStateException(
+                    "Failed to convert persisted event payload for the API response",
+                    ex
+            );
+        }
     }
 }
