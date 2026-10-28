@@ -51,6 +51,7 @@ public interface DeliveryRepository
       )
     ORDER BY COALESCE(next_attempt_at, created_at), created_at
     LIMIT :batchSize
+    FOR UPDATE SKIP LOCKED
     """, nativeQuery = true)
     List<UUID> findReadyDeliveryIds(
             @Param("batchSize") int batchSize
