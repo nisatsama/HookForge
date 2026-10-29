@@ -55,21 +55,11 @@ public class DeliveryService {
             UUID endpointId,
             UUID tenantId
     ) {
-        if (deliveryRepository.existsByEventIdAndEndpointId(
-                eventId,
-                endpointId
-        )) {
-            return false;
-        }
-
-        Delivery delivery = new Delivery(
+        return deliveryRepository.insertIfAbsent(
                 eventId,
                 endpointId,
                 tenantId
-        );
-
-        deliveryRepository.save(delivery);
-        return true;
+        ) == 1;
     }
     @Transactional
     public void processDelivery(UUID deliveryId) {

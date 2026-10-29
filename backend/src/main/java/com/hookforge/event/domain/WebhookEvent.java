@@ -1,6 +1,7 @@
+
 package com.hookforge.event.domain;
+
 import com.fasterxml.jackson.databind.JsonNode;
-//import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -31,6 +32,9 @@ public class WebhookEvent {
     @Column(name = "idempotency_key", length = 255)
     private String idempotencyKey;
 
+    @Column(name = "request_hash", length = 64)
+    private String requestHash;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "payload", nullable = false, columnDefinition = "jsonb")
     private JsonNode payload;
@@ -45,11 +49,13 @@ public class WebhookEvent {
             UUID tenantId,
             String eventType,
             String idempotencyKey,
+            String requestHash,
             JsonNode payload
     ) {
         this.tenantId = tenantId;
         this.eventType = eventType;
         this.idempotencyKey = idempotencyKey;
+        this.requestHash = requestHash;
         this.payload = payload;
     }
 
@@ -74,6 +80,10 @@ public class WebhookEvent {
 
     public String getIdempotencyKey() {
         return idempotencyKey;
+    }
+
+    public String getRequestHash() {
+        return requestHash;
     }
 
     public JsonNode getPayload() {

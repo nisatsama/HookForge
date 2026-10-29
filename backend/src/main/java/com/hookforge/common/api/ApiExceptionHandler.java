@@ -12,7 +12,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-
+import com.hookforge.event.application.IdempotencyConflictException;
 import java.time.Instant;
 
 
@@ -21,6 +21,18 @@ public class ApiExceptionHandler {
 
     private static final Logger log =
             LoggerFactory.getLogger(ApiExceptionHandler.class);
+
+@ExceptionHandler(IdempotencyConflictException.class)
+public ResponseEntity<ApiError> handleIdempotencyConflict(
+        IdempotencyConflictException exception,
+        HttpServletRequest request
+) {
+    return error(
+            HttpStatus.CONFLICT,
+            exception.getMessage(),
+            request.getRequestURI()
+    );
+}
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidation(
