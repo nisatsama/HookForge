@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Optional;
 
 public interface DeliveryAttemptRepository
         extends JpaRepository<DeliveryAttempt, UUID> {
@@ -13,4 +14,7 @@ public interface DeliveryAttemptRepository
     List<DeliveryAttempt> findAllByDeliveryIdOrderByStartedAtDesc(
             UUID deliveryId
     );
+    Optional<DeliveryAttempt> findByDeliveryIdAndCompletedAtIsNull(
+        UUID deliveryId
+);
 }
