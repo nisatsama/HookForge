@@ -1,3 +1,4 @@
+
 package com.hookforge.outbox;
 
 import org.slf4j.Logger;
@@ -17,7 +18,10 @@ public class OutboxPollingScheduler {
         this.outboxPublisher = outboxPublisher;
     }
 
-    @Scheduled(fixedDelayString = "${hookforge.outbox.poll-delay-ms:1000}")
+    @Scheduled(
+            fixedDelayString = "${hookforge.outbox.poll-delay-ms:1000}",
+            initialDelayString = "${hookforge.outbox.initial-delay-ms:1000}"
+    )
     public void poll() {
         int published = outboxPublisher.publishPendingEvents();
 
