@@ -97,4 +97,18 @@ public interface DeliveryRepository
     );
 
     boolean existsByEventIdAndEndpointId(UUID eventId, UUID endpointId);
+    @Query(value = """
+    SELECT id
+    FROM webhook_deliveries
+    WHERE status = 'PROCESSING'
+      AND updated_at < CURRENT_TIMESTAMP
+          - (:staleSeconds * INTERVAL '1 second')
+    ORDER BY updated_at
+    LIMIT :batchSize
+    FOR UPDATE SKIP LOCKED
+    """, nativeQuery = true)
+List<UUID> findStaleProcessingDeliveryIds(
+        @Param("staleSeconds") long staleSeconds,
+        @Param("batchSize") int batchSize
+);
 }
