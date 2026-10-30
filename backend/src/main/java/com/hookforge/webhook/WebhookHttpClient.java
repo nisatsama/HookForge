@@ -98,19 +98,35 @@ public class WebhookHttpClient {
                 HttpResponse.BodyHandlers.ofInputStream()
         );
 
-        long durationMs =
-                Duration.ofNanos(System.nanoTime() - startedNanos).toMillis();
-
         String responseBody;
 
         try (InputStream bodyStream = response.body()) {
-            byte[] bytes = bodyStream.readNBytes(MAX_RESPONSE_BYTES);
-            responseBody = new String(bytes, StandardCharsets.UTF_8);
+            byte[] bytes = bodyStream.readNBytes(
+                    MAX_RESPONSE_BYTES + 1
+            );
 
-            if (bytes.length == MAX_RESPONSE_BYTES) {
+            boolean truncated = bytes.length > MAX_RESPONSE_BYTES;
+
+            int length = Math.min(
+                    bytes.length,
+                    MAX_RESPONSE_BYTES
+            );
+
+            responseBody = new String(
+                    bytes,
+                    0,
+                    length,
+                    StandardCharsets.UTF_8
+            );
+
+            if (truncated) {
                 responseBody += "\n[response truncated]";
             }
         }
+
+        long durationMs = Duration.ofNanos(
+                System.nanoTime() - startedNanos
+        ).toMillis();
 
         return new DeliveryResponse(
                 response.statusCode(),

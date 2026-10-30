@@ -68,22 +68,30 @@ public class DeliveryAttempt {
     }
 
     public void complete(
-            Integer statusCode,
-            String responseBody,
-            String errorMessage,
-            long durationMs
-    ) {
-        if (durationMs < 0) {
-            throw new IllegalArgumentException("durationMs cannot be negative");
-        }
-
-        this.statusCode = statusCode;
-        this.responseBody = responseBody;
-        this.errorMessage = errorMessage;
-        this.durationMs = durationMs;
-        this.completedAt = Instant.now();
+        Integer statusCode,
+        String responseBody,
+        String errorMessage,
+        long durationMs
+) {
+    if (completedAt != null) {
+        throw new IllegalStateException(
+                "Delivery attempt has already been completed"
+        );
     }
 
+    if (durationMs < 0) {
+        throw new IllegalArgumentException(
+                "durationMs cannot be negative"
+        );
+    }
+
+    this.statusCode = statusCode;
+    this.responseBody = responseBody;
+    this.errorMessage = errorMessage;
+    this.durationMs = durationMs;
+    this.completedAt = Instant.now();
+}
+    
     public UUID getId() {
         return id;
     }
