@@ -1,7 +1,6 @@
 
 package com.hookforge.delivery.application;
 
-//import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hookforge.delivery.domain.Delivery;
 import com.hookforge.delivery.domain.DeliveryAttempt;
@@ -27,6 +26,8 @@ public class DeliveryService {
     private static final long INITIAL_BACKOFF_SECONDS = 30;
     private static final long MAX_BACKOFF_SECONDS = 3600;
 
+    private static final int MAX_ERROR_MESSAGE_LENGTH = 1000;
+
     private final DeliveryRepository deliveryRepository;
     private final DeliveryAttemptRepository attemptRepository;
     private final WebhookEventRepository eventRepository;
@@ -49,6 +50,7 @@ public class DeliveryService {
         this.webhookHttpClient = webhookHttpClient;
         this.objectMapper = objectMapper;
     }
+
     @Transactional
     public boolean createIfAbsent(
             UUID eventId,
@@ -61,38 +63,54 @@ public class DeliveryService {
                 tenantId
         ) == 1;
     }
+
     @Transactional
     public void processDelivery(UUID deliveryId) {
-    processDelivery(deliveryId,false);
+        processDeliveryInternal(deliveryId, false);
     }
-    public void processClaimedDelivery(UUID deliveryId){
-        processDelivery(deliveryId,true);
+
+    @Transactional
+    public void processClaimedDelivery(UUID deliveryId) {
+        processDeliveryInternal(deliveryId, true);
     }
-    private void processDelivery(UUID deliveryId,boolean alreadyClaimed){
+
+    private void processDeliveryInternal(
+            UUID deliveryId,
+            boolean alreadyClaimed
+    ) {
         Delivery delivery = deliveryRepository.findById(deliveryId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Delivery not found: " + deliveryId
                 ));
 
-
-        if (delivery.getStatus() == DeliveryStatus.SUCCEEDED
-                || delivery.getStatus() == DeliveryStatus.DEAD
-                || delivery.getStatus() == DeliveryStatus.FAILED
-                || (delivery.getStatus() == DeliveryStatus.PROCESSING
-                && !alreadyClaimed)) {
+        if (isTerminal(delivery.getStatus())) {
             return;
         }
 
+        if (delivery.getStatus() == DeliveryStatus.PROCESSING
+                && !alreadyClaimed) {
+            return;
+        }
+
+        Instant now = Instant.now();
 
         if (delivery.getNextAttemptAt() != null
-                && delivery.getNextAttemptAt().isAfter(Instant.now())) {
+                && delivery.getNextAttemptAt().isAfter(now)) {
             return;
         }
 
-        WebhookEvent event = eventRepository.findById(delivery.getEventId())
-                .orElseThrow(() -> new IllegalStateException(
-                        "Event not found: " + delivery.getEventId()
-                ));
+        // Never exceed the configured attempt limit.
+        if (delivery.getAttemptCount() >= MAX_ATTEMPTS) {
+            delivery.markDead();
+            deliveryRepository.save(delivery);
+            return;
+        }
+
+        WebhookEvent event = eventRepository.findById(
+                delivery.getEventId()
+        ).orElseThrow(() -> new IllegalStateException(
+                "Event not found: " + delivery.getEventId()
+        ));
 
         WebhookEndpoint endpoint = endpointRepository
                 .findByIdAndTenantId(
@@ -103,26 +121,39 @@ public class DeliveryService {
                         "Endpoint not found for delivery: " + deliveryId
                 ));
 
-        if (endpoint.getStatus() != WebhookEndpoint.Status.ACTIVE) {
-            delivery.markFailed();
-            deliveryRepository.save(delivery);
-            return;
-        }
-
         int attemptNumber = delivery.getAttemptCount() + 1;
+
         DeliveryAttempt attempt = new DeliveryAttempt(
                 delivery.getId(),
                 attemptNumber
         );
 
+        // Persist the attempt before performing the external HTTP request.
         delivery.beginAttempt();
         deliveryRepository.save(delivery);
         attemptRepository.save(attempt);
 
         long startedNanos = System.nanoTime();
 
+        if (endpoint.getStatus() != WebhookEndpoint.Status.ACTIVE) {
+            attempt.complete(
+                    null,
+                    null,
+                    "Webhook endpoint is inactive",
+                    elapsedMillis(startedNanos)
+            );
+
+            delivery.markFailed();
+
+            attemptRepository.save(attempt);
+            deliveryRepository.save(delivery);
+            return;
+        }
+
         try {
-            String body = objectMapper.writeValueAsString(event.getPayload());
+            String body = objectMapper.writeValueAsString(
+                    event.getPayload()
+            );
 
             WebhookHttpClient.DeliveryResponse response =
                     webhookHttpClient.send(endpoint, body);
@@ -140,18 +171,6 @@ public class DeliveryService {
                 handleFailure(delivery, attemptNumber);
             }
 
-        } catch (IOException ex) {
-            long durationMs = elapsedMillis(startedNanos);
-
-            attempt.complete(
-                    null,
-                    null,
-                    safeErrorMessage(ex),
-                    durationMs
-            );
-
-            handleFailure(delivery, attemptNumber);
-
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
 
@@ -159,6 +178,16 @@ public class DeliveryService {
                     null,
                     null,
                     "HTTP request interrupted",
+                    elapsedMillis(startedNanos)
+            );
+
+            handleFailure(delivery, attemptNumber);
+
+        } catch (IOException ex) {
+            attempt.complete(
+                    null,
+                    null,
+                    safeErrorMessage(ex),
                     elapsedMillis(startedNanos)
             );
 
@@ -177,22 +206,33 @@ public class DeliveryService {
 
         attemptRepository.save(attempt);
         deliveryRepository.save(delivery);
-
     }
 
-    private void handleFailure(Delivery delivery, int attemptNumber) {
+    private boolean isTerminal(DeliveryStatus status) {
+        return status == DeliveryStatus.SUCCEEDED
+                || status == DeliveryStatus.DEAD
+                || status == DeliveryStatus.FAILED;
+    }
+
+    private void handleFailure(
+            Delivery delivery,
+            int attemptNumber
+    ) {
         if (attemptNumber >= MAX_ATTEMPTS) {
             delivery.markDead();
             return;
         }
 
         long multiplier = 1L << Math.min(attemptNumber - 1, 20);
+
         long delay = Math.min(
                 INITIAL_BACKOFF_SECONDS * multiplier,
                 MAX_BACKOFF_SECONDS
         );
 
-        delivery.scheduleRetry(Instant.now().plusSeconds(delay));
+        delivery.scheduleRetry(
+                Instant.now().plusSeconds(delay)
+        );
     }
 
     private long elapsedMillis(long startedNanos) {
@@ -206,9 +246,8 @@ public class DeliveryService {
             return ex.getClass().getSimpleName();
         }
 
-        // Avoid persisting excessively long exception messages.
-        return message.length() > 1000
-                ? message.substring(0, 1000)
+        return message.length() > MAX_ERROR_MESSAGE_LENGTH
+                ? message.substring(0, MAX_ERROR_MESSAGE_LENGTH)
                 : message;
     }
 }
