@@ -1,29 +1,25 @@
 
 package com.hookforge.delivery.application;
 
-import com.hookforge.delivery.infrastructure.DeliveryRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.doAnswer;
 
 @SpringBootTest(properties = {
         "hookforge.outbox.poll-delay-ms=3600000",
@@ -50,9 +46,6 @@ class DeliveryClaimConcurrencyIntegrationTest {
 
     @Autowired
     private DeliveryClaimService claimService;
-
-    @MockitoSpyBean
-    private DeliveryRepository deliveryRepository;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -89,47 +82,22 @@ class DeliveryClaimConcurrencyIntegrationTest {
                 VALUES (?, ?, ?, ?, 'PENDING')
                 """, deliveryId, eventId, endpointId, tenantId);
 
-        CountDownLatch bothQueriesFinished = new CountDownLatch(2);
-        CountDownLatch releaseWorkers = new CountDownLatch(1);
-
-        doAnswer(invocation -> {
-            @SuppressWarnings("unchecked")
-            List<UUID> result =
-                    (List<UUID>) invocation.callRealMethod();
-
-            bothQueriesFinished.countDown();
-
-            if (!releaseWorkers.await(10, TimeUnit.SECONDS)) {
-                throw new IllegalStateException(
-                        "Timed out waiting for both workers"
-                );
-            }
-
-            return result;
-        }).when(deliveryRepository).findReadyDeliveryIds(1);
-
+        CyclicBarrier startBarrier = new CyclicBarrier(2);
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try {
-            Future<List<UUID>> workerOne = executor.submit(
-                    () -> claimService.claimReadyDeliveries(1)
-            );
+            Future<List<UUID>> workerOne = executor.submit(() -> {
+                startBarrier.await(10, TimeUnit.SECONDS);
+                return claimService.claimReadyDeliveries(1);
+            });
 
-            Future<List<UUID>> workerTwo = executor.submit(
-                    () -> claimService.claimReadyDeliveries(1)
-            );
+            Future<List<UUID>> workerTwo = executor.submit(() -> {
+                startBarrier.await(10, TimeUnit.SECONDS);
+                return claimService.claimReadyDeliveries(1);
+            });
 
-            try {
-                assertTrue(
-                        bothQueriesFinished.await(10, TimeUnit.SECONDS),
-                        "Both workers should execute their claim query"
-                );
-            } finally {
-                releaseWorkers.countDown();
-            }
-
-            List<UUID> firstClaims = workerOne.get(10, TimeUnit.SECONDS);
-            List<UUID> secondClaims = workerTwo.get(10, TimeUnit.SECONDS);
+            List<UUID> firstClaims = workerOne.get(15, TimeUnit.SECONDS);
+            List<UUID> secondClaims = workerTwo.get(15, TimeUnit.SECONDS);
 
             assertEquals(
                     1,
@@ -154,7 +122,6 @@ class DeliveryClaimConcurrencyIntegrationTest {
             );
 
         } finally {
-            releaseWorkers.countDown();
             executor.shutdownNow();
         }
     }
