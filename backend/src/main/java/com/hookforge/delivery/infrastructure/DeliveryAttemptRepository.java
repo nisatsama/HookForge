@@ -17,4 +17,8 @@ public interface DeliveryAttemptRepository
     Optional<DeliveryAttempt> findByDeliveryIdAndCompletedAtIsNull(
         UUID deliveryId
 );
+    Optional<DeliveryAttempt> findByDeliveryIdAndAttemptNumber(
+            UUID deliveryId,
+            int attemptNumber
+    );
 }
