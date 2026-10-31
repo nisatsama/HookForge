@@ -1,3 +1,4 @@
+
 package com.hookforge.delivery.application;
 
 import com.hookforge.delivery.domain.Delivery;
@@ -41,14 +42,10 @@ class DeliveryCompletionServiceTest {
     @Test
     void shouldMarkDeliverySucceededForSuccessfulHttpResponse() {
         TestFixture fixture = createFixture(1);
+        stubAttempt(fixture);
 
         completionService.complete(
-                fixture.prepared(),
-                200,
-                "OK",
-                null,
-                150,
-                false
+                fixture.prepared(), 200, "OK", null, 150, false
         );
 
         assertEquals(DeliveryStatus.SUCCEEDED, fixture.delivery().getStatus());
@@ -64,15 +61,12 @@ class DeliveryCompletionServiceTest {
     @Test
     void shouldScheduleRetryForRateLimitedResponse() {
         TestFixture fixture = createFixture(1);
+        stubAttempt(fixture);
+
         Instant before = Instant.now();
 
         completionService.complete(
-                fixture.prepared(),
-                429,
-                "Rate limited",
-                null,
-                100,
-                true
+                fixture.prepared(), 429, "Rate limited", null, 100, true
         );
 
         Instant nextAttemptAt = fixture.delivery().getNextAttemptAt();
@@ -92,14 +86,10 @@ class DeliveryCompletionServiceTest {
     @Test
     void shouldMarkDeliveryFailedForPermanentHttpError() {
         TestFixture fixture = createFixture(1);
+        stubAttempt(fixture);
 
         completionService.complete(
-                fixture.prepared(),
-                400,
-                "Bad request",
-                null,
-                100,
-                true
+                fixture.prepared(), 400, "Bad request", null, 100, true
         );
 
         assertEquals(DeliveryStatus.FAILED, fixture.delivery().getStatus());
@@ -113,14 +103,10 @@ class DeliveryCompletionServiceTest {
     @Test
     void shouldMarkDeliveryDeadAfterFifthRetryableFailure() {
         TestFixture fixture = createFixture(5);
+        stubAttempt(fixture);
 
         completionService.complete(
-                fixture.prepared(),
-                500,
-                "Internal server error",
-                null,
-                200,
-                true
+                fixture.prepared(), 500, "Internal server error", null, 200, true
         );
 
         assertEquals(DeliveryStatus.DEAD, fixture.delivery().getStatus());
@@ -137,6 +123,8 @@ class DeliveryCompletionServiceTest {
 
         for (int attemptNumber = 1; attemptNumber <= 4; attemptNumber++) {
             TestFixture fixture = createFixture(attemptNumber);
+            stubAttempt(fixture);
+
             Instant before = Instant.now();
 
             completionService.complete(
@@ -169,6 +157,7 @@ class DeliveryCompletionServiceTest {
     @Test
     void shouldMarkDeliveryFailedForPermanentException() {
         TestFixture fixture = createFixture(1);
+        stubAttempt(fixture);
 
         completionService.complete(
                 fixture.prepared(),
@@ -189,6 +178,7 @@ class DeliveryCompletionServiceTest {
     @Test
     void shouldScheduleRetryForRetryableException() {
         TestFixture fixture = createFixture(1);
+        stubAttempt(fixture);
 
         completionService.complete(
                 fixture.prepared(),
@@ -210,6 +200,8 @@ class DeliveryCompletionServiceTest {
     @Test
     void shouldTruncateLongResponseAndClampNegativeDuration() {
         TestFixture fixture = createFixture(1);
+        stubAttempt(fixture);
+
         String longResponse = "A".repeat(1500);
 
         completionService.complete(
@@ -238,12 +230,7 @@ class DeliveryCompletionServiceTest {
         );
 
         completionService.complete(
-                stalePrepared,
-                200,
-                "OK",
-                null,
-                100,
-                false
+                stalePrepared, 200, "OK", null, 100, false
         );
 
         assertEquals(
@@ -289,17 +276,19 @@ class DeliveryCompletionServiceTest {
         when(deliveryRepository.findById(deliveryId))
                 .thenReturn(Optional.of(delivery));
 
-        when(attemptRepository.findByDeliveryIdAndAttemptNumber(
-                deliveryId,
-                attemptNumber
-        )).thenReturn(Optional.of(attempt));
-
         return new TestFixture(
                 deliveryId,
                 delivery,
                 attempt,
                 prepared
         );
+    }
+
+    private void stubAttempt(TestFixture fixture) {
+        when(attemptRepository.findByDeliveryIdAndAttemptNumber(
+                fixture.deliveryId(),
+                fixture.prepared().attemptNumber()
+        )).thenReturn(Optional.of(fixture.attempt()));
     }
 
     private record TestFixture(
