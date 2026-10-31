@@ -1,9 +1,11 @@
+
 package com.hookforge.delivery.application;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hookforge.delivery.domain.Delivery;
 import com.hookforge.delivery.domain.DeliveryAttempt;
+import com.hookforge.delivery.domain.DeliveryStatus;
 import com.hookforge.delivery.infrastructure.DeliveryAttemptRepository;
 import com.hookforge.delivery.infrastructure.DeliveryRepository;
 import com.hookforge.endpoint.domain.WebhookEndpoint;
@@ -52,7 +54,7 @@ public class DeliveryPreparationService {
                         "Delivery not found: " + deliveryId
                 ));
 
-        if (delivery.getStatus() != Delivery.DeliveryStatus.PROCESSING
+        if (delivery.getStatus() != DeliveryStatus.PROCESSING
                 || !processingToken.equals(delivery.getProcessingToken())) {
             return Optional.empty();
         }
@@ -103,7 +105,7 @@ public class DeliveryPreparationService {
             return Optional.empty();
         }
 
-        if (!endpoint.isActive()) {
+        if (endpoint.getStatus() != WebhookEndpoint.Status.ACTIVE) {
             completePermanentFailure(
                     delivery,
                     attempt,

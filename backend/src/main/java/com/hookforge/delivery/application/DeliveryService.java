@@ -1,171 +1,155 @@
 
 package com.hookforge.delivery.application;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.hookforge.delivery.domain.Delivery;
-import com.hookforge.delivery.domain.DeliveryAttempt;
-import com.hookforge.delivery.domain.DeliveryStatus;
-import com.hookforge.delivery.infrastructure.DeliveryAttemptRepository;
 import com.hookforge.delivery.infrastructure.DeliveryRepository;
-import com.hookforge.endpoint.domain.WebhookEndpoint;
-import com.hookforge.endpoint.infrastructure.EndpointRepository;
-import com.hookforge.event.domain.WebhookEvent;
-import com.hookforge.event.infrastructure.WebhookEventRepository;
+import com.hookforge.webhook.PermanentDestinationException;
+import com.hookforge.webhook.RetryableDestinationException;
+import com.hookforge.webhook.WebhookHttpClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
+import java.io.IOException;
 import java.util.UUID;
 
 @Service
-public class DeliveryPreparationService {
-
-    private static final int MAX_ATTEMPTS = 5;
-    private static final int MAX_ERROR_LENGTH = 1000;
+public class DeliveryService {
 
     private final DeliveryRepository deliveryRepository;
-    private final DeliveryAttemptRepository attemptRepository;
-    private final WebhookEventRepository eventRepository;
-    private final EndpointRepository endpointRepository;
-    private final ObjectMapper objectMapper;
+    private final DeliveryPreparationService preparationService;
+    private final DeliveryCompletionService completionService;
+    private final WebhookHttpClient webhookHttpClient;
 
-    public DeliveryPreparationService(
+    public DeliveryService(
             DeliveryRepository deliveryRepository,
-            DeliveryAttemptRepository attemptRepository,
-            WebhookEventRepository eventRepository,
-            EndpointRepository endpointRepository,
-            ObjectMapper objectMapper
+            DeliveryPreparationService preparationService,
+            DeliveryCompletionService completionService,
+            WebhookHttpClient webhookHttpClient
     ) {
         this.deliveryRepository = deliveryRepository;
-        this.attemptRepository = attemptRepository;
-        this.eventRepository = eventRepository;
-        this.endpointRepository = endpointRepository;
-        this.objectMapper = objectMapper;
+        this.preparationService = preparationService;
+        this.completionService = completionService;
+        this.webhookHttpClient = webhookHttpClient;
     }
 
     @Transactional
-    public Optional<PreparedDelivery> prepare(
+    public boolean createIfAbsent(
+            UUID eventId,
+            UUID endpointId,
+            UUID tenantId
+    ) {
+        return deliveryRepository.insertIfAbsent(
+                eventId,
+                endpointId,
+                tenantId
+        ) == 1;
+    }
+
+    /**
+     * Executes a claimed delivery.
+     *
+     * This method deliberately has no transaction:
+     * preparation and completion run in separate transactions,
+     * while the external HTTP request runs between them.
+     */
+    public void processClaimedDelivery(
             UUID deliveryId,
             UUID processingToken
     ) {
-        Delivery delivery = deliveryRepository.findById(deliveryId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Delivery not found: " + deliveryId
-                ));
-
-        if (delivery.getStatus() != DeliveryStatus.PROCESSING
-                || !processingToken.equals(delivery.getProcessingToken())) {
-            return Optional.empty();
-        }
-
-        if (delivery.getAttemptCount() >= MAX_ATTEMPTS) {
-            delivery.markDead();
-            deliveryRepository.save(delivery);
-            return Optional.empty();
-        }
-
-        int attemptNumber = delivery.getAttemptCount() + 1;
-
-        DeliveryAttempt attempt = new DeliveryAttempt(
-                delivery.getId(),
-                attemptNumber
-        );
-
-        delivery.beginAttempt();
-
-        deliveryRepository.save(delivery);
-        attemptRepository.save(attempt);
-
-        WebhookEvent event = eventRepository.findById(delivery.getEventId())
+        PreparedDelivery prepared = preparationService
+                .prepare(deliveryId, processingToken)
                 .orElse(null);
 
-        if (event == null) {
-            completePermanentFailure(
-                    delivery,
-                    attempt,
-                    "Webhook event not found"
-            );
-            return Optional.empty();
+        if (prepared == null) {
+            return;
         }
 
-        WebhookEndpoint endpoint = endpointRepository
-                .findByIdAndTenantId(
-                        delivery.getEndpointId(),
-                        delivery.getTenantId()
-                )
-                .orElse(null);
-
-        if (endpoint == null) {
-            completePermanentFailure(
-                    delivery,
-                    attempt,
-                    "Webhook endpoint not found"
-            );
-            return Optional.empty();
-        }
-
-        if (endpoint.getStatus() != WebhookEndpoint.Status.ACTIVE) {
-            completePermanentFailure(
-                    delivery,
-                    attempt,
-                    "Webhook endpoint is inactive"
-            );
-            return Optional.empty();
-        }
+        long startedNanos = System.nanoTime();
 
         try {
-            String requestBody = objectMapper.writeValueAsString(
-                    event.getPayload()
+            WebhookHttpClient.DeliveryResponse response =
+                    webhookHttpClient.send(
+                            prepared.deliveryId(),
+                            prepared.endpoint(),
+                            prepared.requestBody()
+                    );
+
+            completionService.complete(
+                    prepared,
+                    response.statusCode(),
+                    response.responseBody(),
+                    null,
+                    response.durationMs(),
+                    false
             );
 
-            deliveryRepository.flush();
-            attemptRepository.flush();
-
-            return Optional.of(new PreparedDelivery(
-                    delivery.getId(),
-                    processingToken,
-                    attemptNumber,
-                    endpoint,
-                    requestBody
-            ));
-
-        } catch (JsonProcessingException ex) {
-            completePermanentFailure(
-                    delivery,
-                    attempt,
-                    "Could not serialize webhook payload: "
-                            + ex.getOriginalMessage()
+        } catch (InterruptedException ex) {
+            completeFailure(
+                    prepared,
+                    "HTTP request interrupted",
+                    startedNanos,
+                    true
             );
-            return Optional.empty();
+
+            Thread.currentThread().interrupt();
+
+        } catch (IOException | RetryableDestinationException ex) {
+            completeFailure(
+                    prepared,
+                    safeErrorMessage(ex),
+                    startedNanos,
+                    true
+            );
+
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            completeFailure(
+                    prepared,
+                    safeErrorMessage(ex),
+                    startedNanos,
+                    false
+            );
+
+        } catch (RuntimeException ex) {
+            completeFailure(
+                    prepared,
+                    safeErrorMessage(ex),
+                    startedNanos,
+                    false
+            );
         }
     }
 
-    private void completePermanentFailure(
-            Delivery delivery,
-            DeliveryAttempt attempt,
-            String errorMessage
+    private void completeFailure(
+            PreparedDelivery prepared,
+            String errorMessage,
+            long startedNanos,
+            boolean retryable
     ) {
-        attempt.complete(
-                null,
-                null,
-                truncate(errorMessage),
-                0
+        long durationMs = Math.max(
+                0,
+                (System.nanoTime() - startedNanos) / 1_000_000
         );
 
-        delivery.markFailed();
-
-        attemptRepository.save(attempt);
-        deliveryRepository.save(delivery);
+        completionService.complete(
+                prepared,
+                null,
+                null,
+                errorMessage,
+                durationMs,
+                retryable
+        );
     }
 
-    private String truncate(String message) {
-        if (message == null) {
-            return "Unknown preparation error";
+    private String safeErrorMessage(Exception ex) {
+        String message = ex.getMessage();
+
+        if (message == null || message.isBlank()) {
+            message = ex.getClass().getSimpleName();
         }
 
-        return message.length() <= MAX_ERROR_LENGTH
-                ? message
-                : message.substring(0, MAX_ERROR_LENGTH);
+        int maxLength = 1000;
+
+        return message.length() > maxLength
+                ? message.substring(0, maxLength)
+                : message;
     }
 }

@@ -1,7 +1,9 @@
+
 package com.hookforge.delivery.application;
 
 import com.hookforge.delivery.domain.Delivery;
 import com.hookforge.delivery.domain.DeliveryAttempt;
+import com.hookforge.delivery.domain.DeliveryStatus;
 import com.hookforge.delivery.infrastructure.DeliveryAttemptRepository;
 import com.hookforge.delivery.infrastructure.DeliveryRepository;
 import org.springframework.stereotype.Service;
@@ -45,8 +47,8 @@ public class DeliveryCompletionService {
                         "Delivery not found: " + deliveryId
                 ));
 
-        // Ignore stale workers whose processing lease has expired.
-        if (delivery.getStatus() != Delivery.DeliveryStatus.PROCESSING
+        // Prevent an expired worker from overwriting a newer worker's result.
+        if (delivery.getStatus() != DeliveryStatus.PROCESSING
                 || !prepared.processingToken().equals(
                 delivery.getProcessingToken()
         )) {
@@ -59,36 +61,40 @@ public class DeliveryCompletionService {
                         prepared.attemptNumber()
                 )
                 .orElseThrow(() -> new IllegalStateException(
-                        "Delivery attempt not found"
+                        "Delivery attempt not found: "
+                                + prepared.attemptNumber()
                 ));
 
         if (attempt.getCompletedAt() != null) {
             return;
         }
 
-        String finalError = errorMessage;
-
-        if (statusCode != null && (statusCode < 200 || statusCode >= 300)) {
+        if (statusCode != null) {
             retryable = isRetryableHttpStatus(statusCode);
 
-            if (finalError == null) {
-                finalError = "Webhook endpoint returned HTTP "
+            if (statusCode < 200 || statusCode >= 300) {
+                errorMessage = "Webhook endpoint returned HTTP "
                         + statusCode;
             }
         }
 
         attempt.complete(
                 statusCode,
-                truncate(responseBody, MAX_ERROR_LENGTH),
-                truncate(finalError, MAX_ERROR_LENGTH),
+                truncate(responseBody),
+                truncate(errorMessage),
                 Math.max(0, durationMs)
         );
 
         attemptRepository.save(attempt);
 
-        if (statusCode != null && statusCode >= 200 && statusCode < 300) {
+        if (statusCode != null
+                && statusCode >= 200
+                && statusCode < 300) {
+
             delivery.markSucceeded();
+
         } else if (retryable) {
+
             if (prepared.attemptNumber() >= MAX_ATTEMPTS) {
                 delivery.markDead();
             } else {
@@ -98,6 +104,7 @@ public class DeliveryCompletionService {
                         )
                 );
             }
+
         } else {
             delivery.markFailed();
         }
@@ -113,19 +120,20 @@ public class DeliveryCompletionService {
     }
 
     private long calculateBackoff(int attemptNumber) {
-        long backoff = INITIAL_BACKOFF_SECONDS
-                * (1L << Math.max(0, attemptNumber - 1));
+        long multiplier = 1L << Math.max(0, attemptNumber - 1);
 
-        return Math.min(backoff, MAX_BACKOFF_SECONDS);
+        long delay = INITIAL_BACKOFF_SECONDS * multiplier;
+
+        return Math.min(delay, MAX_BACKOFF_SECONDS);
     }
 
-    private String truncate(String value, int maxLength) {
+    private String truncate(String value) {
         if (value == null) {
             return null;
         }
 
-        return value.length() <= maxLength
+        return value.length() <= MAX_ERROR_LENGTH
                 ? value
-                : value.substring(0, maxLength);
+                : value.substring(0, MAX_ERROR_LENGTH);
     }
 }
