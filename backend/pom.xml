@@ -23,7 +23,11 @@
 	</properties>
 
 	<dependencies>
-
+		<dependency>
+			<groupId>org.mockito</groupId>
+			<artifactId>mockito-junit-jupiter</artifactId>
+			<scope>test</scope>
+		</dependency>
 		<!-- Core application dependencies -->
 
 		<dependency>
