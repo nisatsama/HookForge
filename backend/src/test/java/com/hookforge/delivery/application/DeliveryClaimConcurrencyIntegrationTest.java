@@ -20,6 +20,8 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest(properties = {
         "hookforge.outbox.poll-delay-ms=3600000",
@@ -86,18 +88,23 @@ class DeliveryClaimConcurrencyIntegrationTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
 
         try {
-            Future<List<UUID>> workerOne = executor.submit(() -> {
-                startBarrier.await(10, TimeUnit.SECONDS);
-                return claimService.claimReadyDeliveries(1);
-            });
+            Future<List<DeliveryClaimService.ClaimedDelivery>> workerOne =
+                    executor.submit(() -> {
+                        startBarrier.await(10, TimeUnit.SECONDS);
+                        return claimService.claimReadyDeliveries(1);
+                    });
 
-            Future<List<UUID>> workerTwo = executor.submit(() -> {
-                startBarrier.await(10, TimeUnit.SECONDS);
-                return claimService.claimReadyDeliveries(1);
-            });
+            Future<List<DeliveryClaimService.ClaimedDelivery>> workerTwo =
+                    executor.submit(() -> {
+                        startBarrier.await(10, TimeUnit.SECONDS);
+                        return claimService.claimReadyDeliveries(1);
+                    });
 
-            List<UUID> firstClaims = workerOne.get(15, TimeUnit.SECONDS);
-            List<UUID> secondClaims = workerTwo.get(15, TimeUnit.SECONDS);
+            List<DeliveryClaimService.ClaimedDelivery> firstClaims =
+                    workerOne.get(15, TimeUnit.SECONDS);
+
+            List<DeliveryClaimService.ClaimedDelivery> secondClaims =
+                    workerTwo.get(15, TimeUnit.SECONDS);
 
             assertEquals(
                     1,
@@ -105,20 +112,43 @@ class DeliveryClaimConcurrencyIntegrationTest {
                     "Exactly one worker must claim the delivery"
             );
 
-            assertEquals(
-                    deliveryId,
+            DeliveryClaimService.ClaimedDelivery claimed =
                     firstClaims.isEmpty()
-                            ? secondClaims.getFirst()
-                            : firstClaims.getFirst()
+                            ? secondClaims.get(0)
+                            : firstClaims.get(0);
+
+            assertEquals(deliveryId, claimed.deliveryId());
+
+            assertNotNull(
+                    claimed.processingToken(),
+                    "A processing token must be generated"
             );
 
+            String status = jdbcTemplate.queryForObject(
+                    "SELECT status FROM webhook_deliveries WHERE id = ?",
+                    String.class,
+                    deliveryId
+            );
+
+            assertEquals("PROCESSING", status);
+
+            UUID persistedToken = jdbcTemplate.queryForObject(
+                    "SELECT processing_token FROM webhook_deliveries WHERE id = ?",
+                    UUID.class,
+                    deliveryId
+            );
+
+            assertNotNull(persistedToken);
+
             assertEquals(
-                    "PROCESSING",
-                    jdbcTemplate.queryForObject(
-                            "SELECT status FROM webhook_deliveries WHERE id = ?",
-                            String.class,
-                            deliveryId
-                    )
+                    claimed.processingToken(),
+                    persistedToken,
+                    "The processing token must be persisted correctly"
+            );
+
+            assertTrue(
+                    firstClaims.isEmpty() || secondClaims.isEmpty(),
+                    "One worker must receive no claims"
             );
 
         } finally {
