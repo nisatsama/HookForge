@@ -15,7 +15,7 @@ public class DestinationSecurityService {
 
     public void validateDestination(String rawUrl) {
         if (rawUrl == null || rawUrl.isBlank()) {
-            throw new IllegalArgumentException(
+            throw new PermanentDestinationException(
                     "Destination URL is required"
             );
         }
@@ -25,14 +25,14 @@ public class DestinationSecurityService {
         try {
             uri = URI.create(rawUrl.trim());
         } catch (IllegalArgumentException ex) {
-            throw new IllegalArgumentException(
+            throw new PermanentDestinationException(
                     "Destination URL is invalid",
                     ex
             );
         }
 
         if (!"https".equalsIgnoreCase(uri.getScheme())) {
-            throw new IllegalArgumentException(
+            throw new PermanentDestinationException(
                     "Webhook destinations must use HTTPS"
             );
         }
@@ -40,16 +40,17 @@ public class DestinationSecurityService {
         if (uri.getHost() == null
                 || uri.getUserInfo() != null
                 || uri.getFragment() != null) {
-            throw new IllegalArgumentException(
+            throw new PermanentDestinationException(
                     "Destination URL must have a valid hostname and no credentials or fragment"
             );
         }
 
         String host = uri.getHost().toLowerCase(Locale.ROOT);
 
-        if (host.equals("localhost") || host.endsWith(".localhost")
+        if (host.equals("localhost")
+                || host.endsWith(".localhost")
                 || host.endsWith(".local")) {
-            throw new IllegalArgumentException(
+            throw new PermanentDestinationException(
                     "Local destination hostnames are not allowed"
             );
         }
@@ -59,21 +60,21 @@ public class DestinationSecurityService {
         try {
             addresses = InetAddress.getAllByName(host);
         } catch (UnknownHostException ex) {
-            throw new IllegalArgumentException(
+            throw new RetryableDestinationException(
                     "Destination hostname could not be resolved",
                     ex
             );
         }
 
         if (addresses.length == 0) {
-            throw new IllegalArgumentException(
+            throw new PermanentDestinationException(
                     "Destination hostname has no resolved addresses"
             );
         }
 
         for (InetAddress address : addresses) {
             if (!isPublicAddress(address)) {
-                throw new IllegalArgumentException(
+                throw new PermanentDestinationException(
                         "Destination resolves to a non-public IP address"
                 );
             }
@@ -95,7 +96,6 @@ public class DestinationSecurityService {
             int a = bytes[0] & 0xff;
             int b = bytes[1] & 0xff;
 
-            // Explicitly block common special-use IPv4 ranges.
             if (a == 0
                     || a == 10
                     || a == 127
@@ -115,12 +115,12 @@ public class DestinationSecurityService {
         }
 
         if (address instanceof Inet6Address) {
-            // IPv6 unique-local addresses fc00::/7.
+            // IPv6 unique-local addresses: fc00::/7.
             if ((bytes[0] & 0xfe) == 0xfc) {
                 return false;
             }
 
-            // IPv6 addresses in 2001:db8::/32 are documentation-only.
+            // IPv6 documentation range: 2001:db8::/32.
             if ((bytes[0] & 0xff) == 0x20
                     && (bytes[1] & 0xff) == 0x01
                     && (bytes[2] & 0xff) == 0x0d
@@ -128,8 +128,9 @@ public class DestinationSecurityService {
                 return false;
             }
 
-            // Reject IPv4-mapped IPv6 addresses to avoid bypasses.
+            // Reject IPv4-mapped IPv6 addresses.
             boolean ipv4Mapped = true;
+
             for (int i = 0; i < 10; i++) {
                 if (bytes[i] != 0) {
                     ipv4Mapped = false;
@@ -137,7 +138,8 @@ public class DestinationSecurityService {
                 }
             }
 
-            if (ipv4Mapped && bytes[10] == (byte) 0xff
+            if (ipv4Mapped
+                    && bytes[10] == (byte) 0xff
                     && bytes[11] == (byte) 0xff) {
                 return false;
             }
