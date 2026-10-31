@@ -14,6 +14,7 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.UUID;
 
 @Component
 public class WebhookHttpClient {
@@ -41,9 +42,14 @@ public class WebhookHttpClient {
     }
 
     public DeliveryResponse send(
+            UUID deliveryId,
             WebhookEndpoint endpoint,
             String requestBody
     ) throws IOException, InterruptedException {
+
+        if (deliveryId == null) {
+            throw new IllegalArgumentException("Delivery ID is required");
+        }
 
         if (endpoint == null) {
             throw new IllegalArgumentException("Endpoint is required");
@@ -83,6 +89,7 @@ public class WebhookHttpClient {
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .header("User-Agent", "HookForge/1.0")
+                .header("X-Webhook-Delivery-ID", deliveryId.toString())
                 .header("X-Webhook-Timestamp", Long.toString(timestamp))
                 .header("X-Webhook-Signature", signature)
                 .POST(HttpRequest.BodyPublishers.ofString(
