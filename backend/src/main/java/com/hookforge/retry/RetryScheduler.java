@@ -2,6 +2,7 @@
 package com.hookforge.retry;
 
 import com.hookforge.delivery.application.DeliveryClaimService;
+import com.hookforge.delivery.application.DeliveryClaimService.ClaimedDelivery;
 import com.hookforge.delivery.application.DeliveryService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,7 +10,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
-import java.util.UUID;
 
 @Component
 public class RetryScheduler {
@@ -34,7 +34,7 @@ public class RetryScheduler {
             fixedDelayString = "${hookforge.delivery.poll-interval-ms:1000}"
     )
     public void processDueDeliveries() {
-        List<UUID> claimed;
+        List<ClaimedDelivery> claimed;
 
         try {
             claimed = deliveryClaimService.claimReadyDeliveries(BATCH_SIZE);
@@ -43,13 +43,16 @@ public class RetryScheduler {
             return;
         }
 
-        for (UUID deliveryId : claimed) {
+        for (ClaimedDelivery delivery : claimed) {
             try {
-                deliveryService.processClaimedDelivery(deliveryId);
+                deliveryService.processClaimedDelivery(
+                        delivery.deliveryId(),
+                        delivery.processingToken()
+                );
             } catch (Exception ex) {
                 log.error(
                         "Error processing claimed delivery {}",
-                        deliveryId,
+                        delivery.deliveryId(),
                         ex
                 );
             }

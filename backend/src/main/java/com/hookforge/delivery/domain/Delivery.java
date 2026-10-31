@@ -1,12 +1,21 @@
+
 package com.hookforge.delivery.domain;
 
-import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 
 import java.time.Instant;
 import java.util.UUID;
-@Getter
+
 @Entity
 @Table(
         name = "webhook_deliveries",
@@ -15,7 +24,6 @@ import java.util.UUID;
                 columnNames = {"event_id", "endpoint_id"}
         )
 )
-
 public class Delivery {
 
     @Id
@@ -37,6 +45,9 @@ public class Delivery {
 
     @Column(name = "attempt_count", nullable = false)
     private int attemptCount = 0;
+
+    @Column(name = "processing_token")
+    private UUID processingToken;
 
     @Column(name = "next_attempt_at")
     private Instant nextAttemptAt;
@@ -106,6 +117,10 @@ public class Delivery {
         return attemptCount;
     }
 
+    public UUID getProcessingToken() {
+        return processingToken;
+    }
+
     public Instant getNextAttemptAt() {
         return nextAttemptAt;
     }
@@ -126,6 +141,18 @@ public class Delivery {
         return updatedAt;
     }
 
+    public void assignProcessingToken(UUID processingToken) {
+        if (processingToken == null) {
+            throw new IllegalArgumentException("Processing token cannot be null");
+        }
+
+        this.processingToken = processingToken;
+    }
+
+    public void clearProcessingToken() {
+        this.processingToken = null;
+    }
+
     public void beginAttempt() {
         this.status = DeliveryStatus.PROCESSING;
         this.attemptCount++;
@@ -137,21 +164,24 @@ public class Delivery {
         this.status = DeliveryStatus.SUCCEEDED;
         this.deliveredAt = Instant.now();
         this.nextAttemptAt = null;
+        clearProcessingToken();
     }
 
     public void scheduleRetry(Instant retryAt) {
         this.status = DeliveryStatus.RETRYING;
         this.nextAttemptAt = retryAt;
+        clearProcessingToken();
     }
 
     public void markDead() {
         this.status = DeliveryStatus.DEAD;
         this.nextAttemptAt = null;
+        clearProcessingToken();
     }
 
     public void markFailed() {
         this.status = DeliveryStatus.FAILED;
         this.nextAttemptAt = null;
+        clearProcessingToken();
     }
-
 }

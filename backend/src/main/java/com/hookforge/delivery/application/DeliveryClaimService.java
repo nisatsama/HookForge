@@ -20,24 +20,44 @@ public class DeliveryClaimService {
         this.deliveryRepository = deliveryRepository;
     }
 
+    public record ClaimedDelivery(
+            UUID deliveryId,
+            UUID processingToken
+    ) {
+    }
+
     @Transactional
-    public List<UUID> claimReadyDeliveries(int requestedBatchSize) {
+    public List<ClaimedDelivery> claimReadyDeliveries(
+            int requestedBatchSize
+    ) {
         if (requestedBatchSize < 1) {
             throw new IllegalArgumentException(
                     "Batch size must be positive"
             );
         }
 
-        int batchSize = Math.min(requestedBatchSize, MAX_BATCH_SIZE);
+        int batchSize = Math.min(
+                requestedBatchSize,
+                MAX_BATCH_SIZE
+        );
 
         List<UUID> candidates =
                 deliveryRepository.findReadyDeliveryIds(batchSize);
 
-        List<UUID> claimed = new ArrayList<>();
+        List<ClaimedDelivery> claimed = new ArrayList<>();
 
         for (UUID id : candidates) {
-            if (deliveryRepository.claimDelivery(id) == 1) {
-                claimed.add(id);
+            UUID processingToken = UUID.randomUUID();
+
+            int updated = deliveryRepository.claimDelivery(
+                    id,
+                    processingToken
+            );
+
+            if (updated == 1) {
+                claimed.add(
+                        new ClaimedDelivery(id, processingToken)
+                );
             }
         }
 
