@@ -21,7 +21,15 @@ public class WebhookHttpClient {
 
     private static final int MAX_RESPONSE_BYTES = 8 * 1024;
 
+    private static final Duration CONNECT_TIMEOUT =
+            Duration.ofSeconds(5);
+
+    private static final Duration REQUEST_TIMEOUT =
+            Duration.ofSeconds(10);
+
     private final HttpClient httpClient;
+    private final Duration requestTimeout;
+
     private final DestinationSecurityService destinationSecurityService;
     private final WebHookRequestSigner requestSigner;
     private final WebhookSecretEncryptionService encryptionService;
@@ -31,14 +39,31 @@ public class WebhookHttpClient {
             WebHookRequestSigner requestSigner,
             WebhookSecretEncryptionService encryptionService
     ) {
+        this(
+                destinationSecurityService,
+                requestSigner,
+                encryptionService,
+                HttpClient.newBuilder()
+                        .connectTimeout(CONNECT_TIMEOUT)
+                        .followRedirects(HttpClient.Redirect.NEVER)
+                        .build(),
+                REQUEST_TIMEOUT
+        );
+    }
+
+    // Package-private constructor for controlled HTTP testing.
+    WebhookHttpClient(
+            DestinationSecurityService destinationSecurityService,
+            WebHookRequestSigner requestSigner,
+            WebhookSecretEncryptionService encryptionService,
+            HttpClient httpClient,
+            Duration requestTimeout
+    ) {
         this.destinationSecurityService = destinationSecurityService;
         this.requestSigner = requestSigner;
         this.encryptionService = encryptionService;
-
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(5))
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
+        this.httpClient = httpClient;
+        this.requestTimeout = requestTimeout;
     }
 
     public DeliveryResponse send(
@@ -66,7 +91,6 @@ public class WebhookHttpClient {
             );
         }
 
-        // Revalidate the URL immediately before sending.
         destinationSecurityService.validateDestination(endpoint.getUrl());
 
         URI uri = URI.create(endpoint.getUrl());
@@ -85,7 +109,7 @@ public class WebhookHttpClient {
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(uri)
-                .timeout(Duration.ofSeconds(10))
+                .timeout(requestTimeout)
                 .header("Content-Type", "application/json")
                 .header("Accept", "application/json")
                 .header("User-Agent", "HookForge/1.0")
@@ -108,6 +132,7 @@ public class WebhookHttpClient {
         String responseBody;
 
         try (InputStream bodyStream = response.body()) {
+
             byte[] bytes = bodyStream.readNBytes(
                     MAX_RESPONSE_BYTES + 1
             );
