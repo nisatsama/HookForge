@@ -1,9 +1,7 @@
-
 package com.hookforge.webhook;
 
 import com.hookforge.endpoint.domain.WebhookEndpoint;
 import com.hookforge.security.WebhookSecretEncryptionService;
-
 import com.sun.net.httpserver.HttpServer;
 
 import org.junit.jupiter.api.AfterEach;
@@ -16,14 +14,17 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.ServerSocket;
 import java.net.http.HttpClient;
+import java.net.http.HttpTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import java.net.ServerSocket;
+
 @ExtendWith(MockitoExtension.class)
 class WebhookHttpClientIntegrationTest {
 
@@ -47,6 +48,10 @@ class WebhookHttpClientIntegrationTest {
 
     private String responseBody = "accepted";
 
+    private long responseDelayMs = 0;
+
+    private boolean dropResponse = false;
+
     private final AtomicReference<String> receivedRequestBody =
             new AtomicReference<>();
 
@@ -69,7 +74,7 @@ class WebhookHttpClientIntegrationTest {
             receivedRequestBody.set(
                     new String(
                             exchange.getRequestBody().readAllBytes(),
-                            java.nio.charset.StandardCharsets.UTF_8
+                            StandardCharsets.UTF_8
                     )
             );
 
@@ -83,8 +88,25 @@ class WebhookHttpClientIntegrationTest {
                             .getFirst("X-Webhook-Signature")
             );
 
+            // Simulate a slow destination before it sends response headers.
+            if (responseDelayMs > 0) {
+                try {
+                    Thread.sleep(responseDelayMs);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                    exchange.close();
+                    return;
+                }
+            }
+
+            // Simulate a receiver that gets the request but loses its response.
+            if (dropResponse) {
+                exchange.close();
+                return;
+            }
+
             byte[] responseBytes = responseBody.getBytes(
-                    java.nio.charset.StandardCharsets.UTF_8
+                    StandardCharsets.UTF_8
             );
 
             exchange.sendResponseHeaders(
@@ -99,16 +121,7 @@ class WebhookHttpClientIntegrationTest {
 
         server.start();
 
-        HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(2))
-                .followRedirects(HttpClient.Redirect.NEVER)
-                .build();
-
-        webhookHttpClient = new WebhookHttpClient(
-                destinationSecurityService,
-                new WebHookRequestSigner(),
-                encryptionService,
-                httpClient,
+        webhookHttpClient = createWebhookHttpClient(
                 Duration.ofSeconds(3)
         );
 
@@ -116,8 +129,25 @@ class WebhookHttpClientIntegrationTest {
                 .thenReturn("test-signing-secret");
     }
 
+    private WebhookHttpClient createWebhookHttpClient(Duration timeout) {
+
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(2))
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+
+        return new WebhookHttpClient(
+                destinationSecurityService,
+                new WebHookRequestSigner(),
+                encryptionService,
+                httpClient,
+                timeout
+        );
+    }
+
     @AfterEach
     void tearDown() {
+
         if (server != null) {
             server.stop(0);
         }
@@ -209,8 +239,10 @@ class WebhookHttpClientIntegrationTest {
         assertEquals("invalid payload", response.responseBody());
         assertFalse(response.isSuccessful());
     }
+
     @Test
-    void shouldThrowIOExceptionWhenDestinationConnectionIsRefused() throws Exception {
+    void shouldThrowIOExceptionWhenDestinationConnectionIsRefused()
+            throws Exception {
 
         int unusedPort;
 
@@ -219,7 +251,8 @@ class WebhookHttpClientIntegrationTest {
             unusedPort = socket.getLocalPort();
         }
 
-        String unreachableUrl = "http://127.0.0.1:" + unusedPort + "/";
+        String unreachableUrl =
+                "http://127.0.0.1:" + unusedPort + "/";
 
         WebhookEndpoint endpoint = new WebhookEndpoint(
                 UUID.randomUUID(),
@@ -238,6 +271,58 @@ class WebhookHttpClientIntegrationTest {
                 )
         );
     }
+
+    @Test
+    void shouldThrowHttpTimeoutExceptionWhenDestinationRespondsTooSlowly()
+            throws Exception {
+
+        responseDelayMs = 1500;
+
+        WebhookHttpClient shortTimeoutClient =
+                createWebhookHttpClient(Duration.ofMillis(300));
+
+        assertThrows(
+                HttpTimeoutException.class,
+                () -> shortTimeoutClient.send(
+                        UUID.randomUUID(),
+                        createEndpoint(),
+                        REQUEST_BODY
+                )
+        );
+    }
+
+    @Test
+    void shouldThrowIOExceptionWhenReceiverProcessesRequestButResponseIsLost()
+            throws Exception {
+
+        dropResponse = true;
+
+        UUID deliveryId = UUID.randomUUID();
+
+        WebhookEndpoint endpoint = createEndpoint();
+
+        assertThrows(
+                IOException.class,
+                () -> webhookHttpClient.send(
+                        deliveryId,
+                        endpoint,
+                        REQUEST_BODY
+                )
+        );
+
+        // The receiver got the complete request.
+        assertEquals(REQUEST_BODY, receivedRequestBody.get());
+
+        // The receiver also received the delivery ID.
+        assertEquals(
+                deliveryId.toString(),
+                receivedDeliveryId.get()
+        );
+
+        // The request was signed.
+        assertNotNull(receivedSignature.get());
+    }
+
     private WebhookEndpoint createEndpoint() {
 
         return new WebhookEndpoint(
@@ -250,6 +335,7 @@ class WebhookHttpClientIntegrationTest {
     }
 
     private String createEndpointUrl() {
+
         return "http://127.0.0.1:"
                 + server.getAddress().getPort()
                 + "/";
