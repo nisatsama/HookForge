@@ -3,6 +3,7 @@ package com.hookforge.webhook;
 
 import com.hookforge.endpoint.domain.WebhookEndpoint;
 import com.hookforge.security.WebhookSecretEncryptionService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -34,6 +35,7 @@ public class WebhookHttpClient {
     private final WebHookRequestSigner requestSigner;
     private final WebhookSecretEncryptionService encryptionService;
 
+    @Autowired
     public WebhookHttpClient(
             DestinationSecurityService destinationSecurityService,
             WebHookRequestSigner requestSigner,
