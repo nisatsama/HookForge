@@ -273,7 +273,8 @@ class DeliveryCompletionServiceTest {
                 "{}"
         );
 
-        when(deliveryRepository.findById(deliveryId))
+        // Updated to match DeliveryCompletionService's pessimistic-lock lookup.
+        when(deliveryRepository.findByIdForUpdate(deliveryId))
                 .thenReturn(Optional.of(delivery));
 
         return new TestFixture(
