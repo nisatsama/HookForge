@@ -49,7 +49,7 @@ public class DeliveryPreparationService {
             UUID deliveryId,
             UUID processingToken
     ) {
-        Delivery delivery = deliveryRepository.findById(deliveryId)
+        Delivery delivery = deliveryRepository.findByIdForUpdate(deliveryId)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Delivery not found: " + deliveryId
                 ));
