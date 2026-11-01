@@ -2,7 +2,9 @@
 package com.hookforge.delivery.infrastructure;
 
 import com.hookforge.delivery.domain.Delivery;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -124,4 +126,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
             UUID eventId,
             UUID endpointId
     );
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT d FROM Delivery d WHERE d.id = :id")
+    Optional<Delivery> findByIdForUpdate(@Param("id") UUID id);
 }
