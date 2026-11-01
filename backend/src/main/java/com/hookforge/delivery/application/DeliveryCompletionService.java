@@ -47,7 +47,6 @@ public class DeliveryCompletionService {
                         "Delivery not found: " + deliveryId
                 ));
 
-        // Prevent an expired worker from overwriting a newer worker's result.
         if (delivery.getStatus() != DeliveryStatus.PROCESSING
                 || !prepared.processingToken().equals(
                 delivery.getProcessingToken()
@@ -95,12 +94,16 @@ public class DeliveryCompletionService {
 
         } else if (retryable) {
 
-            if (prepared.attemptNumber() >= MAX_ATTEMPTS) {
+            // Count attempts in the current retry/replay cycle,
+            // not the global historical attempt number.
+            int cycleAttemptNumber = delivery.getAttemptCount();
+
+            if (cycleAttemptNumber >= MAX_ATTEMPTS) {
                 delivery.markDead();
             } else {
                 delivery.scheduleRetry(
                         Instant.now().plusSeconds(
-                                calculateBackoff(prepared.attemptNumber())
+                                calculateBackoff(cycleAttemptNumber)
                         )
                 );
             }
