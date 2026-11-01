@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
-
+import java.net.ServerSocket;
 @ExtendWith(MockitoExtension.class)
 class WebhookHttpClientIntegrationTest {
 
@@ -209,7 +209,35 @@ class WebhookHttpClientIntegrationTest {
         assertEquals("invalid payload", response.responseBody());
         assertFalse(response.isSuccessful());
     }
+    @Test
+    void shouldThrowIOExceptionWhenDestinationConnectionIsRefused() throws Exception {
 
+        int unusedPort;
+
+        // Reserve an ephemeral port, then close it so no server is listening.
+        try (ServerSocket socket = new ServerSocket(0)) {
+            unusedPort = socket.getLocalPort();
+        }
+
+        String unreachableUrl = "http://127.0.0.1:" + unusedPort + "/";
+
+        WebhookEndpoint endpoint = new WebhookEndpoint(
+                UUID.randomUUID(),
+                "Unavailable Endpoint",
+                unreachableUrl,
+                "test-secret-hash",
+                ENCRYPTED_SECRET
+        );
+
+        assertThrows(
+                IOException.class,
+                () -> webhookHttpClient.send(
+                        UUID.randomUUID(),
+                        endpoint,
+                        REQUEST_BODY
+                )
+        );
+    }
     private WebhookEndpoint createEndpoint() {
 
         return new WebhookEndpoint(
