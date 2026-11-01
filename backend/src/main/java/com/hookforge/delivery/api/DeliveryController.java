@@ -1,9 +1,12 @@
+
 package com.hookforge.delivery.api;
 
 import com.hookforge.delivery.api.dto.DeliveryAttemptResponse;
 import com.hookforge.delivery.api.dto.DeliveryResponse;
 import com.hookforge.delivery.application.DeliveryNotFoundException;
 import com.hookforge.delivery.application.DeliveryQueryService;
+import com.hookforge.delivery.application.DeliveryReplayNotAllowedException;
+import com.hookforge.delivery.application.DeliveryReplayService;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -20,9 +23,14 @@ import java.util.UUID;
 public class DeliveryController {
 
     private final DeliveryQueryService deliveryQueryService;
+    private final DeliveryReplayService deliveryReplayService;
 
-    public DeliveryController(DeliveryQueryService deliveryQueryService) {
+    public DeliveryController(
+            DeliveryQueryService deliveryQueryService,
+            DeliveryReplayService deliveryReplayService
+    ) {
         this.deliveryQueryService = deliveryQueryService;
+        this.deliveryReplayService = deliveryReplayService;
     }
 
     @GetMapping("/{deliveryId}")
@@ -43,6 +51,15 @@ public class DeliveryController {
         return deliveryQueryService.getAttempts(tenantId, deliveryId);
     }
 
+    @PostMapping("/{deliveryId}/replay")
+    public DeliveryResponse replayDelivery(
+            @PathVariable UUID deliveryId,
+            HttpServletRequest request
+    ) {
+        UUID tenantId = authenticatedTenantId(request);
+        return deliveryReplayService.replay(tenantId, deliveryId);
+    }
+
     private UUID authenticatedTenantId(HttpServletRequest request) {
         Object value = request.getAttribute("tenantId");
 
@@ -59,6 +76,14 @@ public class DeliveryController {
     ) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of("error", "Delivery not found"));
+    }
+
+    @ExceptionHandler(DeliveryReplayNotAllowedException.class)
+    public ResponseEntity<Map<String, String>> handleReplayNotAllowed(
+            DeliveryReplayNotAllowedException exception
+    ) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(Map.of("error", exception.getMessage()));
     }
 
     @ExceptionHandler(TenantAuthenticationException.class)
