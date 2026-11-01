@@ -65,7 +65,8 @@ public class DeliveryPreparationService {
             return Optional.empty();
         }
 
-        int attemptNumber = delivery.getAttemptCount() + 1;
+        int attemptNumber =
+                attemptRepository.findMaxAttemptNumberByDeliveryId(deliveryId) + 1;
 
         DeliveryAttempt attempt = new DeliveryAttempt(
                 delivery.getId(),

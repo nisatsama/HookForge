@@ -143,7 +143,9 @@ public class Delivery {
 
     public void assignProcessingToken(UUID processingToken) {
         if (processingToken == null) {
-            throw new IllegalArgumentException("Processing token cannot be null");
+            throw new IllegalArgumentException(
+                    "Processing token cannot be null"
+            );
         }
 
         this.processingToken = processingToken;
@@ -182,6 +184,21 @@ public class Delivery {
     public void markFailed() {
         this.status = DeliveryStatus.FAILED;
         this.nextAttemptAt = null;
+        clearProcessingToken();
+    }
+
+    public void replay() {
+        if (status != DeliveryStatus.FAILED
+                && status != DeliveryStatus.DEAD) {
+            throw new IllegalStateException(
+                    "Only FAILED or DEAD deliveries can be replayed"
+            );
+        }
+
+        this.status = DeliveryStatus.PENDING;
+        this.attemptCount = 0;
+        this.nextAttemptAt = null;
+        this.deliveredAt = null;
         clearProcessingToken();
     }
 }

@@ -129,4 +129,15 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT d FROM Delivery d WHERE d.id = :id")
     Optional<Delivery> findByIdForUpdate(@Param("id") UUID id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        SELECT d FROM Delivery d
+        WHERE d.id = :deliveryId
+          AND d.tenantId = :tenantId
+        """)
+    Optional<Delivery> findByIdAndTenantIdForUpdate(
+            @Param("deliveryId") UUID deliveryId,
+            @Param("tenantId") UUID tenantId
+    );
 }
