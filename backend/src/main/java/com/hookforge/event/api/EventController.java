@@ -8,6 +8,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/api/v1/events")
 public class EventController {
@@ -17,7 +19,12 @@ public class EventController {
     public EventController(EventService eventService) {
         this.eventService = eventService;
     }
-
+    @GetMapping("/{id}")
+    public ResponseEntity<EventResponse> getEvent(
+            @PathVariable UUID id
+    ) {
+        return ResponseEntity.ok(eventService.getEvent(id));
+    }
     @PostMapping
     public ResponseEntity<EventResponse> createEvent(
             @Valid @RequestBody CreateEventRequest request,

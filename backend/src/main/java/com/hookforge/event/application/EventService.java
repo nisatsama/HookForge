@@ -11,9 +11,11 @@ import com.hookforge.outbox.domain.OutboxEvent;
 import com.hookforge.outbox.infrastructure.OutboxEventRepository;
 import com.hookforge.security.TenantContext;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -50,7 +52,19 @@ public class EventService {
         this.transactionTemplate =
                 new TransactionTemplate(transactionManager);
     }
+    public EventResponse getEvent(UUID eventId) {
 
+        UUID tenantId = TenantContext.getTenantId();
+
+        WebhookEvent event = eventRepository
+                .findByIdAndTenantId(eventId, tenantId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND,
+                        "Event not found"
+                ));
+
+        return toResponse(event, false);
+    }
     public EventResponse createEvent(
             CreateEventRequest request,
             String idempotencyKey
