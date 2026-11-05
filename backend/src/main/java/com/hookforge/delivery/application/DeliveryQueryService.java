@@ -1,11 +1,13 @@
 package com.hookforge.delivery.application;
 
 import com.hookforge.delivery.api.dto.DeliveryAttemptResponse;
+import com.hookforge.delivery.api.dto.DeliveryPageResponse;
 import com.hookforge.delivery.api.dto.DeliveryResponse;
 import com.hookforge.delivery.domain.Delivery;
 import com.hookforge.delivery.infrastructure.DeliveryAttemptRepository;
 import com.hookforge.delivery.infrastructure.DeliveryRepository;
 
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,5 +53,39 @@ public class DeliveryQueryService {
         return deliveryRepository.findByIdAndTenantId(deliveryId, tenantId)
                 .orElseThrow(() ->
                         new DeliveryNotFoundException(deliveryId));
+    }
+    @Transactional(readOnly = true)
+    public DeliveryPageResponse getDeliveries(
+            UUID tenantId,
+            DeliveryStatus status,
+            UUID eventId,
+            UUID endpointId,
+            int page,
+            int size
+    ) {
+        Page<Delivery> deliveries =
+                deliveryRepository.findAllByTenantWithFilters(
+                        tenantId,
+                        status,
+                        eventId,
+                        endpointId,
+                        PageRequest.of(
+                                page,
+                                size,
+                                Sort.by(Sort.Direction.DESC, "createdAt")
+                        )
+                );
+
+        return new DeliveryPageResponse(
+                deliveries.getContent()
+                        .stream()
+                        .map(DeliveryResponse::from)
+                        .toList(),
+                deliveries.getNumber(),
+                deliveries.getSize(),
+                deliveries.getTotalElements(),
+                deliveries.getTotalPages(),
+                deliveries.isLast()
+        );
     }
 }
