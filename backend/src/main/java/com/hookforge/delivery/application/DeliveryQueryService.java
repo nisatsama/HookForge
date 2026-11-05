@@ -4,16 +4,20 @@ import com.hookforge.delivery.api.dto.DeliveryAttemptResponse;
 import com.hookforge.delivery.api.dto.DeliveryPageResponse;
 import com.hookforge.delivery.api.dto.DeliveryResponse;
 import com.hookforge.delivery.domain.Delivery;
+import com.hookforge.delivery.domain.DeliveryStatus;
 import com.hookforge.delivery.infrastructure.DeliveryAttemptRepository;
 import com.hookforge.delivery.infrastructure.DeliveryRepository;
 
+//import org.hibernate.query.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
-
+import org.springframework.data.domain.Page;
+//import org.springframework.data.domain.Pageable;
 @Service
 public class DeliveryQueryService {
 
