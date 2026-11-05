@@ -2,13 +2,16 @@
 package com.hookforge.delivery.infrastructure;
 
 import com.hookforge.delivery.domain.Delivery;
+import com.hookforge.delivery.domain.DeliveryStatus;
 import jakarta.persistence.LockModeType;
+import org.hibernate.query.Page;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.awt.print.Pageable;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -139,5 +142,30 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
     Optional<Delivery> findByIdAndTenantIdForUpdate(
             @Param("deliveryId") UUID deliveryId,
             @Param("tenantId") UUID tenantId
+    );
+    @Query(
+            value = """
+        SELECT d
+        FROM Delivery d
+        WHERE d.tenantId = :tenantId
+          AND (:status IS NULL OR d.status = :status)
+          AND (:eventId IS NULL OR d.eventId = :eventId)
+          AND (:endpointId IS NULL OR d.endpointId = :endpointId)
+        """,
+            countQuery = """
+        SELECT COUNT(d)
+        FROM Delivery d
+        WHERE d.tenantId = :tenantId
+          AND (:status IS NULL OR d.status = :status)
+          AND (:eventId IS NULL OR d.eventId = :eventId)
+          AND (:endpointId IS NULL OR d.endpointId = :endpointId)
+        """
+    )
+    Page<Delivery> findAllByTenantWithFilters(
+            @Param("tenantId") UUID tenantId,
+            @Param("status") DeliveryStatus status,
+            @Param("eventId") UUID eventId,
+            @Param("endpointId") UUID endpointId,
+            Pageable pageable
     );
 }
