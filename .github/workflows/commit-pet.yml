@@ -1,0 +1,21 @@
+name: Commit Pet
+
+on:
+  schedule:
+    - cron: "0 21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  models: read
+
+jobs:
+  pet:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: yukurash/commit-pet@v1
+        with:
+          species: slime
+          name: Commit Pet
