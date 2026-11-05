@@ -1,8 +1,8 @@
-
 package com.hookforge.delivery.api;
 
 import com.hookforge.delivery.application.DeliveryQueryService;
 import com.hookforge.delivery.application.DeliveryReplayService;
+import com.hookforge.identity.application.ApiKeyService;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +30,9 @@ class DeliveryControllerTest {
 
     @MockitoBean
     private DeliveryReplayService deliveryReplayService;
+
+    @MockitoBean
+    private ApiKeyService apiKeyService;
 
     @Test
     void replayDeliveryShouldReturnOkForAuthenticatedTenant() throws Exception {
