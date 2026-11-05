@@ -95,4 +95,30 @@ public class DeliveryController {
     private static class TenantAuthenticationException
             extends RuntimeException {
     }
+    @GetMapping
+    public DeliveryPageResponse getDeliveries(
+            @RequestParam(required = false) DeliveryStatus status,
+            @RequestParam(required = false) UUID eventId,
+            @RequestParam(required = false) UUID endpointId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest request
+    ) {
+        if (page < 0 || size < 1 || size > 100) {
+            throw new IllegalArgumentException(
+                    "Invalid pagination parameters. Page must be >= 0 and size must be between 1 and 100."
+            );
+        }
+
+        UUID tenantId = authenticatedTenantId(request);
+
+        return deliveryQueryService.getDeliveries(
+                tenantId,
+                status,
+                eventId,
+                endpointId,
+                page,
+                size
+        );
+    }
 }
