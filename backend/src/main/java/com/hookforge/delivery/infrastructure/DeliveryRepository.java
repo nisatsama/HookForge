@@ -169,4 +169,7 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
             @Param("endpointId") UUID endpointId,
             Pageable pageable
     );
+    long countByTenantId(UUID tenantId);
+
+    long countByTenantIdAndStatus(UUID tenantId, DeliveryStatus status);
 }
