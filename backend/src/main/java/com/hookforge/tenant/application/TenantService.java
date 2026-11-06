@@ -1,6 +1,8 @@
 
 package com.hookforge.tenant.application;
 
+import com.hookforge.tenant.api.dto.CreateTenantRequest;
+import com.hookforge.tenant.api.dto.TenantResponse;
 import com.hookforge.tenant.domain.Tenant;
 import com.hookforge.tenant.infrastructure.TenantRepository;
 import org.springframework.stereotype.Service;
@@ -18,43 +20,41 @@ public class TenantService {
     }
 
     @Transactional
-    public Tenant create(String name, String slug) {
+    public TenantResponse create(CreateTenantRequest request) {
 
-        // Normalize input
-        String normalizedName = name.trim();
-        String normalizedSlug = slug.trim()
+        String normalizedName = request.name().trim();
+        String normalizedSlug = request.slug()
+                .trim()
                 .toLowerCase(Locale.ROOT);
 
-        // Validate tenant name
         if (normalizedName.isBlank()) {
             throw new IllegalArgumentException(
                     "Tenant name cannot be blank"
             );
         }
 
-        // Validate slug format
         if (!normalizedSlug.matches(
                 "[a-z0-9]+(?:-[a-z0-9]+)*"
         )) {
             throw new IllegalArgumentException(
-                    "Slug must contain only lowercase letters, "
+                    "Slug must contain lowercase letters, "
                             + "numbers, and single hyphens"
             );
         }
 
-        // Prevent duplicate slugs
         if (tenantRepository.existsBySlug(normalizedSlug)) {
             throw new IllegalArgumentException(
                     "A tenant with this slug already exists"
             );
         }
 
-        // Create and persist tenant
         Tenant tenant = new Tenant(
                 normalizedName,
                 normalizedSlug
         );
 
-        return tenantRepository.save(tenant);
+        Tenant savedTenant = tenantRepository.save(tenant);
+
+        return TenantResponse.from(savedTenant);
     }
 }
