@@ -1,9 +1,13 @@
+
 package com.hookforge.identity.api;
+
 import com.hookforge.identity.application.ApiKeyService;
+import com.hookforge.security.AuthenticatedTenant;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
@@ -22,11 +26,11 @@ public class ApiKeyController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public ApiKeyService.CreatedApiKey create(
-            @RequestHeader("X-Tenant-Id") UUID tenantId,
+            @AuthenticationPrincipal AuthenticatedTenant principal,
             @Valid @RequestBody CreateApiKeyRequest request
     ) {
         return apiKeyService.create(
-                tenantId,
+                principal.tenantId(),
                 request.name(),
                 request.expiresAt()
         );
@@ -35,10 +39,10 @@ public class ApiKeyController {
     @PostMapping("/{id}/revoke")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void revoke(
-            @RequestHeader("X-Tenant-Id") UUID tenantId,
+            @AuthenticationPrincipal AuthenticatedTenant principal,
             @PathVariable UUID id
     ) {
-        apiKeyService.revoke(tenantId, id);
+        apiKeyService.revoke(principal.tenantId(), id);
     }
 
     public record CreateApiKeyRequest(
