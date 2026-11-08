@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.Instant;
 import java.util.UUID;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/api-keys")
@@ -21,6 +22,13 @@ public class ApiKeyController {
 
     public ApiKeyController(ApiKeyService apiKeyService) {
         this.apiKeyService = apiKeyService;
+    }
+
+    @GetMapping
+    public List<ApiKeyService.ApiKeyMetadata> list(
+            @AuthenticationPrincipal AuthenticatedTenant principal
+    ) {
+        return apiKeyService.list(principal.tenantId());
     }
 
     @PostMapping

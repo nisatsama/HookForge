@@ -10,7 +10,8 @@ import com.hookforge.delivery.application.DeliveryReplayNotAllowedException;
 import com.hookforge.delivery.application.DeliveryReplayService;
 
 import com.hookforge.delivery.domain.DeliveryStatus;
-import jakarta.servlet.http.HttpServletRequest;
+import com.hookforge.security.AuthenticatedTenant;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -38,35 +39,33 @@ public class DeliveryController {
     @GetMapping("/{deliveryId}")
     public DeliveryResponse getDelivery(
             @PathVariable UUID deliveryId,
-            HttpServletRequest request
+            @AuthenticationPrincipal AuthenticatedTenant principal
     ) {
-        UUID tenantId = authenticatedTenantId(request);
+        UUID tenantId = authenticatedTenantId(principal);
         return deliveryQueryService.getDelivery(tenantId, deliveryId);
     }
 
     @GetMapping("/{deliveryId}/attempts")
     public List<DeliveryAttemptResponse> getAttempts(
             @PathVariable UUID deliveryId,
-            HttpServletRequest request
+            @AuthenticationPrincipal AuthenticatedTenant principal
     ) {
-        UUID tenantId = authenticatedTenantId(request);
+        UUID tenantId = authenticatedTenantId(principal);
         return deliveryQueryService.getAttempts(tenantId, deliveryId);
     }
 
     @PostMapping("/{deliveryId}/replay")
     public DeliveryResponse replayDelivery(
             @PathVariable UUID deliveryId,
-            HttpServletRequest request
+            @AuthenticationPrincipal AuthenticatedTenant principal
     ) {
-        UUID tenantId = authenticatedTenantId(request);
+        UUID tenantId = authenticatedTenantId(principal);
         return deliveryReplayService.replay(tenantId, deliveryId);
     }
 
-    private UUID authenticatedTenantId(HttpServletRequest request) {
-        Object value = request.getAttribute("tenantId");
-
-        if (value instanceof UUID tenantId) {
-            return tenantId;
+    private UUID authenticatedTenantId(AuthenticatedTenant principal) {
+        if (principal != null && principal.tenantId() != null) {
+            return principal.tenantId();
         }
 
         throw new TenantAuthenticationException();
@@ -104,7 +103,7 @@ public class DeliveryController {
             @RequestParam(required = false) UUID endpointId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            HttpServletRequest request
+            @AuthenticationPrincipal AuthenticatedTenant principal
     ) {
         if (page < 0 || size < 1 || size > 100) {
             throw new IllegalArgumentException(
@@ -112,7 +111,7 @@ public class DeliveryController {
             );
         }
 
-        UUID tenantId = authenticatedTenantId(request);
+        UUID tenantId = authenticatedTenantId(principal);
 
         return deliveryQueryService.getDeliveries(
                 tenantId,

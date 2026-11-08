@@ -18,6 +18,7 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.UUID;
 import java.util.Optional;
+import java.util.List;
 @Service
 public class ApiKeyService {
 
@@ -120,6 +121,19 @@ public class ApiKeyService {
 
         apiKey.revoke();
     }
+
+    @Transactional(readOnly = true)
+    public List<ApiKeyMetadata> list(UUID tenantId) {
+        return apiKeyRepository.findAllByTenant_IdOrderByCreatedAtDesc(tenantId)
+                .stream().map(key -> new ApiKeyMetadata(key.getId(), key.getName(),
+                        key.getKeyPrefix(), key.getCreatedAt(), key.getExpiresAt(),
+                        key.getRevokedAt(), key.getLastUsedAt()))
+                .toList();
+    }
+
+    public record ApiKeyMetadata(UUID id, String name, String keyPrefix,
+                                 Instant createdAt, Instant expiresAt,
+                                 Instant revokedAt, Instant lastUsedAt) { }
 
     private static String sha256(String value) {
         try {

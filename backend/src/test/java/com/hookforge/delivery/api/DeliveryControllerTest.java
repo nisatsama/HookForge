@@ -3,6 +3,9 @@ package com.hookforge.delivery.api;
 import com.hookforge.delivery.application.DeliveryQueryService;
 import com.hookforge.delivery.application.DeliveryReplayService;
 import com.hookforge.identity.application.ApiKeyService;
+import com.hookforge.security.AuthenticatedTenant;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,9 +42,17 @@ class DeliveryControllerTest {
         UUID tenantId = UUID.randomUUID();
         UUID deliveryId = UUID.randomUUID();
 
-        mockMvc.perform(post("/api/v1/deliveries/{deliveryId}/replay", deliveryId)
-                        .requestAttr("tenantId", tenantId))
-                .andExpect(status().isOk());
+        var authentication = new UsernamePasswordAuthenticationToken(
+                new AuthenticatedTenant(tenantId, UUID.randomUUID()), null,
+                java.util.List.of());
+
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+        try {
+            mockMvc.perform(post("/api/v1/deliveries/{deliveryId}/replay", deliveryId))
+                    .andExpect(status().isOk());
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
 
         verify(deliveryReplayService).replay(tenantId, deliveryId);
     }
