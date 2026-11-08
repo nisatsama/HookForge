@@ -1,3 +1,4 @@
+
 name: HookForge CI
 
 on:
@@ -19,6 +20,9 @@ jobs:
   build-and-test:
     name: Build and test
     runs-on: ubuntu-latest
+
+    env:
+      HOOKFORGE_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef"
 
     defaults:
       run:
