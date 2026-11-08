@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -65,6 +67,19 @@ public class EventService {
 
         return toResponse(event, false);
     }
+
+    public EventPageResponse listEvents(UUID tenantId, int page, int size) {
+        var events = eventRepository.findAllByTenantId(tenantId,
+                PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        return new EventPageResponse(events.getContent().stream()
+                .map(event -> toResponse(event, false)).toList(),
+                events.getNumber(), events.getSize(), events.getTotalElements(),
+                events.getTotalPages(), events.isLast());
+    }
+
+    public record EventPageResponse(java.util.List<EventResponse> items,
+                                    int page, int size, long totalElements,
+                                    int totalPages, boolean last) { }
     public EventResponse createEvent(
             CreateEventRequest request,
             String idempotencyKey
