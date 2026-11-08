@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      HOOKFORGE_ENCRYPTION_KEY: "0123456789abcdef0123456789abcdef"
+      HOOKFORGE_ENCRYPTION_KEY: "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
 
     defaults:
       run:
