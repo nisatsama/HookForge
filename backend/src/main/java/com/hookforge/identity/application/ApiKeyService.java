@@ -74,7 +74,14 @@ public class ApiKeyService {
                 hash,
                 expiresAt
         );
+        System.out.println("[HookForge Key Creation] Prefix length: "
+                + prefix.length());
 
+        System.out.println("[HookForge Key Creation] Prefix starts with space: "
+                + Character.isWhitespace(prefix.charAt(0)));
+
+        System.out.println("[HookForge Key Creation] Hash length: "
+                + hash.length());
         apiKeyRepository.save(apiKey);
 
         return new CreatedApiKey(
