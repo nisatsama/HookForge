@@ -8,6 +8,8 @@ import com.hookforge.endpoint.application.EndpointService;
 import com.hookforge.security.AuthenticatedTenant;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -17,6 +19,9 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/endpoints")
 public class EndpointController {
+
+    private static final Logger log =
+            LoggerFactory.getLogger(EndpointController.class);
 
     private final EndpointService endpointService;
 
@@ -40,6 +45,8 @@ public class EndpointController {
     public List<EndpointResponse> list(
             @AuthenticationPrincipal AuthenticatedTenant principal
     ) {
+        log.warn("[AuthDiag] endpoint_list injected_principal_null={} injected_principal_tenant_id_null={}",
+                principal == null, principal == null || principal.tenantId() == null);
         return endpointService.list(requireTenant(principal));
     }
 

@@ -75,7 +75,7 @@ npm run lint
 npm run test
 ```
 
-Backend integration tests use Testcontainers and require Docker. Frontend lint currently uses TypeScript compilation. There is no browser E2E suite configured yet.
+Most backend integration tests use Testcontainers and require Docker. The API-key authentication integration test can instead use a local PostgreSQL instance without Docker. It activates the `test` profile and uses `HOOKFORGE_TEST_DB_URL`, `HOOKFORGE_TEST_DB_USERNAME`, and `HOOKFORGE_TEST_DB_PASSWORD` (defaults target `localhost:5433/hookforge` with the local development username/password). It creates an isolated `hookforge_api_key_test` schema for Flyway and JPA; it does not use the application's public schema. For example, set the three `HOOKFORGE_TEST_DB_*` variables in the test shell, then run `./mvnw -Dtest=ApiKeyAuthenticationIntegrationTest test`. Do not point this profile at production. Frontend lint currently uses TypeScript compilation. There is no browser E2E suite configured yet.
 
 ## Troubleshooting
 
