@@ -74,14 +74,6 @@ public class ApiKeyService {
                 hash,
                 expiresAt
         );
-        System.out.println("[HookForge Key Creation] Prefix length: "
-                + prefix.length());
-
-        System.out.println("[HookForge Key Creation] Prefix starts with space: "
-                + Character.isWhitespace(prefix.charAt(0)));
-
-        System.out.println("[HookForge Key Creation] Hash length: "
-                + hash.length());
         apiKeyRepository.save(apiKey);
 
         return new CreatedApiKey(
@@ -101,12 +93,6 @@ public class ApiKeyService {
         }
 
         String hash = sha256(rawKey);
-        System.out.println("[HookForge Auth] Submitted key prefix: "
-                + rawKey.substring(0, Math.min(16, rawKey.length())));
-
-        System.out.println("[HookForge Auth] Matching hash exists: "
-                + apiKeyRepository.existsByKeyHash(hash));
-
         return apiKeyRepository.findByKeyHash(hash)
                 .filter(key -> key.isUsableAt(Instant.now()))
                 .map(key -> new AuthenticatedTenant(

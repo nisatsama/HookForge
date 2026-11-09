@@ -49,10 +49,6 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         String rawKey = authorization.substring(7).trim();
 
         var authenticated = apiKeyService.authenticate(rawKey);
-        System.out.println(
-                "[HookForge Auth] API key authentication successful: "
-                        + authenticated.isPresent()
-        );
         if (authenticated.isEmpty()) {
             response.sendError(
                     HttpServletResponse.SC_UNAUTHORIZED,
@@ -83,10 +79,6 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         SecurityContextHolder.getContext()
                 .setAuthentication(authentication);
-        System.out.println(
-                "[HookForge Auth] Security context authenticated: "
-                        + SecurityContextHolder.getContext().getAuthentication().isAuthenticated()
-        );
         try {
             filterChain.doFilter(request, response);
         } finally {
