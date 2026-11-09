@@ -83,7 +83,10 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         SecurityContextHolder.getContext()
                 .setAuthentication(authentication);
-
+        System.out.println(
+                "[HookForge Auth] Security context authenticated: "
+                        + SecurityContextHolder.getContext().getAuthentication().isAuthenticated()
+        );
         try {
             filterChain.doFilter(request, response);
         } finally {
