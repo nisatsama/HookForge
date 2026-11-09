@@ -94,6 +94,11 @@ public class ApiKeyService {
         }
 
         String hash = sha256(rawKey);
+        System.out.println("[HookForge Auth] Submitted key prefix: "
+                + rawKey.substring(0, Math.min(16, rawKey.length())));
+
+        System.out.println("[HookForge Auth] Matching hash exists: "
+                + apiKeyRepository.existsByKeyHash(hash));
 
         return apiKeyRepository.findByKeyHash(hash)
                 .filter(key -> key.isUsableAt(Instant.now()))
