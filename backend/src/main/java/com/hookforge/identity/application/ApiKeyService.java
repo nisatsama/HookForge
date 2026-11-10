@@ -6,6 +6,7 @@ import com.hookforge.tenant.domain.Tenant;
 import com.hookforge.tenant.domain.TenantStatus;
 import com.hookforge.tenant.infrastructure.TenantRepository;
 
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +20,9 @@ import java.util.HexFormat;
 import java.util.UUID;
 import java.util.Optional;
 import java.util.List;
+//import java.util.logging.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 @Service
 public class ApiKeyService {
 
@@ -27,7 +31,8 @@ public class ApiKeyService {
 
     private final ApiKeyRepository apiKeyRepository;
     private final TenantRepository tenantRepository;
-
+    private static final Logger log =
+            LoggerFactory.getLogger(ApiKeyService.class);
     public ApiKeyService(
             ApiKeyRepository apiKeyRepository,
             TenantRepository tenantRepository
@@ -93,12 +98,37 @@ public class ApiKeyService {
         }
 
         String hash = sha256(rawKey);
-        return apiKeyRepository.findByKeyHash(hash)
-                .filter(key -> key.isUsableAt(Instant.now()))
-                .map(key -> new AuthenticatedTenant(
-                        key.getTenant().getId(),
-                        key.getId()
-                ));
+
+        Optional<ApiKey> result = apiKeyRepository.findByKeyHash(hash);
+
+        log.warn("[AuthDiag] database_hash_match={}", result.isPresent());
+
+        if (result.isEmpty()) {
+            return Optional.empty();
+        }
+
+        ApiKey key = result.get();
+        Instant now = Instant.now();
+
+        boolean revoked = key.getRevokedAt() != null;
+        boolean expired = key.getExpiresAt() != null
+                && !key.getExpiresAt().isAfter(now);
+        boolean tenantActive = key.getTenant().getStatus()
+                == TenantStatus.ACTIVE;
+
+        log.warn(
+                "[AuthDiag] revoked={} expired={} tenant_active={}",
+                revoked, expired, tenantActive
+        );
+
+        if (!key.isUsableAt(now)) {
+            return Optional.empty();
+        }
+
+        return Optional.of(new AuthenticatedTenant(
+                key.getTenant().getId(),
+                key.getId()
+        ));
     }
 
     public record AuthenticatedTenant(
