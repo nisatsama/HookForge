@@ -78,6 +78,7 @@ public class DestinationSecurityService {
                 );
             }
         }
+        validateResolvedAddresses(addresses);
 
         return addresses;
     }
@@ -188,5 +189,20 @@ public class DestinationSecurityService {
         }
 
         return true;
+    }
+    void validateResolvedAddresses(InetAddress[] addresses) {
+        if (addresses == null || addresses.length == 0) {
+            throw new PermanentDestinationException(
+                    "Destination hostname has no resolved addresses"
+            );
+        }
+
+        for (InetAddress address : addresses) {
+            if (!isPublicAddress(address)) {
+                throw new PermanentDestinationException(
+                        "Destination resolves to a non-public IP address"
+                );
+            }
+        }
     }
 }

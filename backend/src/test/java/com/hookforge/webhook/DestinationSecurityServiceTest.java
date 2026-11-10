@@ -57,6 +57,31 @@ class DestinationSecurityServiceTest {
         assertFalse(isPublic("ff02::1"));
     }
 
+    @Test
+    void shouldRejectMixedPublicAndPrivateDnsResults() throws Exception {
+        assertThrows(
+                PermanentDestinationException.class,
+                () -> service.validateResolvedAddresses(
+                        new InetAddress[]{
+                                InetAddress.getByAddress(
+                                        new byte[]{8, 8, 8, 8}
+                                ),
+                                InetAddress.getByAddress(
+                                        new byte[]{10, 0, 0, 1}
+                                )
+                        }
+                )
+        );
+    }
+
+    @Test
+    void shouldRejectEmptyDnsResults() {
+        assertThrows(
+                PermanentDestinationException.class,
+                () -> service.validateResolvedAddresses(new InetAddress[0])
+        );
+    }
+
     private boolean isPublic(String address) throws Exception {
         var method = DestinationSecurityService.class
                 .getDeclaredMethod("isPublicAddress", InetAddress.class);
