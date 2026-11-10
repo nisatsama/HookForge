@@ -134,6 +134,10 @@ public class DestinationSecurityService {
                     0, 0, 0, 0, 0, 0, 0, 0
             }, 16)
                     || matchesPrefix(bytes, new int[]{
+                    0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0
+            }, 32)
+                    || matchesPrefix(bytes, new int[]{
                     0x3f, 0xff, 0, 0, 0, 0, 0, 0,
                     0, 0, 0, 0, 0, 0, 0, 0
             }, 20)) {
