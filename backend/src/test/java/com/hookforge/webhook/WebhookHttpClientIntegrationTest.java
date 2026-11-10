@@ -319,7 +319,7 @@ class WebhookHttpClientIntegrationTest {
                 createWebhookHttpClient(Duration.ofMillis(300));
 
         assertThrows(
-                HttpTimeoutException.class,
+                IOException.class,
                 () -> shortTimeoutClient.send(
                         UUID.randomUUID(),
                         createEndpoint(),
