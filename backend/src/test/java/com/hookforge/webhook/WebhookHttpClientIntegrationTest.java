@@ -15,13 +15,21 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.net.http.HttpClient;
-import java.net.http.HttpTimeoutException;
+
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import org.apache.hc.client5.http.DnsResolver;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.core5.util.Timeout;
+import org.apache.hc.core5.util.TimeValue;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -131,9 +139,38 @@ class WebhookHttpClientIntegrationTest {
 
     private WebhookHttpClient createWebhookHttpClient(Duration timeout) {
 
-        HttpClient httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(2))
-                .followRedirects(HttpClient.Redirect.NEVER)
+        DnsResolver testDnsResolver = new DnsResolver() {
+
+            @Override
+            public InetAddress[] resolve(String host)
+                    throws UnknownHostException {
+                // Test-only resolver: permits the local HTTP test server.
+                return InetAddress.getAllByName(host);
+            }
+
+            @Override
+            public String resolveCanonicalHostname(String host) {
+                return host;
+            }
+        };
+
+        var connectionManager =
+                PoolingHttpClientConnectionManagerBuilder.create()
+                        .setDnsResolver(testDnsResolver)
+                        .setConnectionTimeToLive(TimeValue.ofMinutes(1))
+                        .build();
+
+        var requestConfig = RequestConfig.custom()
+                .setConnectTimeout(Timeout.ofSeconds(2))
+                .setResponseTimeout(Timeout.of(timeout))
+                .setRedirectsEnabled(false)
+                .build();
+
+        CloseableHttpClient httpClient = HttpClients.custom()
+                .setConnectionManager(connectionManager)
+                .setDefaultRequestConfig(requestConfig)
+                .disableRedirectHandling()
+                .disableAutomaticRetries()
                 .build();
 
         return new WebhookHttpClient(
