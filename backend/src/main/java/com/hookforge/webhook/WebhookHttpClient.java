@@ -179,6 +179,7 @@ public class WebhookHttpClient {
         );
 
         RequestConfig perRequestConfig = RequestConfig.custom()
+                .setConnectTimeout(Timeout.of(CONNECT_TIMEOUT))
                 .setResponseTimeout(Timeout.of(requestTimeout))
                 .setConnectionRequestTimeout(Timeout.ofSeconds(5))
                 .setRedirectsEnabled(false)
