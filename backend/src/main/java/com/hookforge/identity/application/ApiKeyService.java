@@ -86,21 +86,25 @@ public class ApiKeyService {
         );
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Optional<AuthenticatedTenant> authenticate(String rawKey) {
         if (rawKey == null || rawKey.isBlank()) {
             return Optional.empty();
         }
 
         String hash = sha256(rawKey);
+
         return apiKeyRepository.findByKeyHash(hash)
                 .filter(key -> key.isUsableAt(Instant.now()))
-                .map(key -> new AuthenticatedTenant(
-                        key.getTenant().getId(),
-                        key.getId()
-                ));
-    }
+                .map(key -> {
+                    key.markUsed();
 
+                    return new AuthenticatedTenant(
+                            key.getTenant().getId(),
+                            key.getId()
+                    );
+                });
+    }
     public record AuthenticatedTenant(
             UUID tenantId,
             UUID apiKeyId
