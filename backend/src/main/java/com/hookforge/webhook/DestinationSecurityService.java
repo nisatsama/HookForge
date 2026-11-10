@@ -51,6 +51,36 @@ public class DestinationSecurityService {
 
         resolvePublicAddresses(host);
     }
+    public InetAddress[] resolvePublicAddresses(String host) {
+
+
+        final InetAddress[] addresses;
+
+        try {
+            addresses = InetAddress.getAllByName(host);
+        } catch (UnknownHostException ex) {
+            throw new RetryableDestinationException(
+                    "Destination hostname could not be resolved",
+                    ex
+            );
+        }
+
+        if (addresses.length == 0) {
+            throw new PermanentDestinationException(
+                    "Destination hostname has no resolved addresses"
+            );
+        }
+
+        for (InetAddress address : addresses) {
+            if (!isPublicAddress(address)) {
+                throw new PermanentDestinationException(
+                        "Destination resolves to a non-public IP address"
+                );
+            }
+        }
+
+        return addresses;
+    }
     private boolean isPublicAddress(InetAddress address) {
         if (address.isAnyLocalAddress()
                 || address.isLoopbackAddress()
