@@ -82,7 +82,8 @@ public class DestinationSecurityService {
         return addresses;
     }
     private boolean isPublicAddress(InetAddress address) {
-        if (address.isAnyLocalAddress()
+        if (address == null
+                || address.isAnyLocalAddress()
                 || address.isLoopbackAddress()
                 || address.isLinkLocalAddress()
                 || address.isSiteLocalAddress()
@@ -93,38 +94,49 @@ public class DestinationSecurityService {
         byte[] bytes = address.getAddress();
 
         if (address instanceof Inet4Address) {
-            int a = bytes[0] & 0xff;
-            int b = bytes[1] & 0xff;
-
-            if (a == 0
-                    || a == 10
-                    || a == 127
-                    || (a == 100 && b >= 64 && b <= 127)
-                    || (a == 169 && b == 254)
-                    || (a == 172 && b >= 16 && b <= 31)
-                    || (a == 192 && b == 168)
-                    || (a == 192 && b == 0)
-                    || (a == 198 && (b == 18 || b == 19))
-                    || (a == 198 && b == 51)
-                    || (a == 203 && b == 0)
-                    || a >= 224) {
-                return false;
-            }
-
-            return true;
+            return !matchesPrefix(bytes, new int[]{0, 0, 0, 0}, 8)
+                    && !matchesPrefix(bytes, new int[]{10, 0, 0, 0}, 8)
+                    && !matchesPrefix(bytes, new int[]{100, 64, 0, 0}, 10)
+                    && !matchesPrefix(bytes, new int[]{127, 0, 0, 0}, 8)
+                    && !matchesPrefix(bytes, new int[]{169, 254, 0, 0}, 16)
+                    && !matchesPrefix(bytes, new int[]{172, 16, 0, 0}, 12)
+                    && !matchesPrefix(bytes, new int[]{192, 0, 0, 0}, 24)
+                    && !matchesPrefix(bytes, new int[]{192, 0, 2, 0}, 24)
+                    && !matchesPrefix(bytes, new int[]{192, 88, 99, 0}, 24)
+                    && !matchesPrefix(bytes, new int[]{192, 168, 0, 0}, 16)
+                    && !matchesPrefix(bytes, new int[]{198, 18, 0, 0}, 15)
+                    && !matchesPrefix(bytes, new int[]{198, 51, 100, 0}, 24)
+                    && !matchesPrefix(bytes, new int[]{203, 0, 113, 0}, 24)
+                    && !matchesPrefix(bytes, new int[]{224, 0, 0, 0}, 4)
+                    && !matchesPrefix(bytes, new int[]{240, 0, 0, 0}, 4);
         }
 
         if (address instanceof Inet6Address) {
-            // IPv6 unique-local addresses: fc00::/7.
-            if ((bytes[0] & 0xfe) == 0xfc) {
+            // Allow only IPv6 global-unicast space: 2000::/3.
+            if (!matchesPrefix(bytes, new int[]{
+                    0x20, 0x00, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0
+            }, 3)) {
                 return false;
             }
 
-            // IPv6 documentation range: 2001:db8::/32.
-            if ((bytes[0] & 0xff) == 0x20
-                    && (bytes[1] & 0xff) == 0x01
-                    && (bytes[2] & 0xff) == 0x0d
-                    && (bytes[3] & 0xff) == 0xb8) {
+            // Reject special-purpose IPv6 ranges conservatively.
+            if (matchesPrefix(bytes, new int[]{
+                    0x20, 0x01, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0
+            }, 23)
+                    || matchesPrefix(bytes, new int[]{
+                    0x20, 0x01, 0x00, 0x20, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0
+            }, 28)
+                    || matchesPrefix(bytes, new int[]{
+                    0x20, 0x02, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0
+            }, 16)
+                    || matchesPrefix(bytes, new int[]{
+                    0x3f, 0xff, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0
+            }, 20)) {
                 return false;
             }
 
@@ -148,5 +160,29 @@ public class DestinationSecurityService {
         }
 
         return false;
+    }
+
+    private boolean matchesPrefix(
+            byte[] address,
+            int[] network,
+            int prefixLength
+    ) {
+        int fullBytes = prefixLength / 8;
+        int remainingBits = prefixLength % 8;
+
+        for (int i = 0; i < fullBytes; i++) {
+            if ((address[i] & 0xff) != network[i]) {
+                return false;
+            }
+        }
+
+        if (remainingBits > 0) {
+            int mask = 0xff << (8 - remainingBits);
+
+            return ((address[fullBytes] & 0xff) & mask)
+                    == (network[fullBytes] & mask);
+        }
+
+        return true;
     }
 }
