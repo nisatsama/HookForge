@@ -3,16 +3,28 @@ package com.hookforge.webhook;
 
 import com.hookforge.endpoint.domain.WebhookEndpoint;
 import com.hookforge.security.WebhookSecretEncryptionService;
+import jakarta.annotation.PreDestroy;
+import org.apache.hc.client5.http.DnsResolver;
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.config.RequestConfig;
+import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManager;
+import org.apache.hc.client5.http.impl.io.PoolingHttpClientConnectionManagerBuilder;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.io.entity.StringEntity;
+import org.apache.hc.core5.util.TimeValue;
+import org.apache.hc.core5.util.Timeout;
+import org.apache.hc.core5.http.ClassicHttpResponse;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
@@ -28,7 +40,7 @@ public class WebhookHttpClient {
     private static final Duration REQUEST_TIMEOUT =
             Duration.ofSeconds(10);
 
-    private final HttpClient httpClient;
+    private final CloseableHttpClient httpClient;
     private final Duration requestTimeout;
 
     private final DestinationSecurityService destinationSecurityService;
@@ -41,24 +53,22 @@ public class WebhookHttpClient {
             WebHookRequestSigner requestSigner,
             WebhookSecretEncryptionService encryptionService
     ) {
-        this(
+        this.destinationSecurityService = destinationSecurityService;
+        this.requestSigner = requestSigner;
+        this.encryptionService = encryptionService;
+        this.requestTimeout = REQUEST_TIMEOUT;
+        this.httpClient = createHttpClient(
                 destinationSecurityService,
-                requestSigner,
-                encryptionService,
-                HttpClient.newBuilder()
-                        .connectTimeout(CONNECT_TIMEOUT)
-                        .followRedirects(HttpClient.Redirect.NEVER)
-                        .build(),
-                REQUEST_TIMEOUT
+                requestTimeout
         );
     }
 
-    // Package-private constructor for controlled HTTP testing.
+    // Package-private constructor for integration tests.
     WebhookHttpClient(
             DestinationSecurityService destinationSecurityService,
             WebHookRequestSigner requestSigner,
             WebhookSecretEncryptionService encryptionService,
-            HttpClient httpClient,
+            CloseableHttpClient httpClient,
             Duration requestTimeout
     ) {
         this.destinationSecurityService = destinationSecurityService;
@@ -66,6 +76,50 @@ public class WebhookHttpClient {
         this.encryptionService = encryptionService;
         this.httpClient = httpClient;
         this.requestTimeout = requestTimeout;
+    }
+
+    private static CloseableHttpClient createHttpClient(
+            DestinationSecurityService securityService,
+            Duration requestTimeout
+    ) {
+        DnsResolver dnsResolver = new DnsResolver() {
+
+            @Override
+            public InetAddress[] resolve(String host)
+                    throws UnknownHostException {
+                return securityService.resolvePublicAddresses(host);
+            }
+
+            @Override
+            public String resolveCanonicalHostname(String host)
+                    throws UnknownHostException {
+                return host;
+            }
+        };
+
+        PoolingHttpClientConnectionManager connectionManager =
+                PoolingHttpClientConnectionManagerBuilder.create()
+                        .setDnsResolver(dnsResolver)
+                        .setConnectionTimeToLive(TimeValue.ofMinutes(1))
+                        .setMaxConnTotal(100)
+                        .setMaxConnPerRoute(10)
+                        .build();
+
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(Timeout.of(CONNECT_TIMEOUT))
+                .setResponseTimeout(Timeout.of(requestTimeout))
+                .setConnectionRequestTimeout(Timeout.ofSeconds(5))
+                .setRedirectsEnabled(false)
+                .build();
+
+        return HttpClients.custom()
+                .setConnectionManager(connectionManager)
+                .setDefaultRequestConfig(requestConfig)
+                .disableRedirectHandling()
+                .disableAutomaticRetries()
+                .disableCookieManagement()
+                .disableContentCompression()
+                .build();
     }
 
     public DeliveryResponse send(
@@ -93,6 +147,8 @@ public class WebhookHttpClient {
             );
         }
 
+        // Preflight validation. DNS is also checked again by the
+        // connection manager immediately before opening a connection.
         destinationSecurityService.validateDestination(endpoint.getUrl());
 
         URI uri = URI.create(endpoint.getUrl());
@@ -109,31 +165,59 @@ public class WebhookHttpClient {
                 requestBody
         );
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(uri)
-                .timeout(requestTimeout)
-                .header("Content-Type", "application/json")
-                .header("Accept", "application/json")
-                .header("User-Agent", "HookForge/1.0")
-                .header("X-Webhook-Delivery-ID", deliveryId.toString())
-                .header("X-Webhook-Timestamp", Long.toString(timestamp))
-                .header("X-Webhook-Signature", signature)
-                .POST(HttpRequest.BodyPublishers.ofString(
-                        requestBody,
-                        StandardCharsets.UTF_8
-                ))
+        HttpPost request = new HttpPost(uri);
+
+        request.setHeader("Content-Type", "application/json");
+        request.setHeader("Accept", "application/json");
+        request.setHeader("User-Agent", "HookForge/1.0");
+        request.setHeader("X-Webhook-Delivery-ID", deliveryId.toString());
+        request.setHeader("X-Webhook-Timestamp", Long.toString(timestamp));
+        request.setHeader("X-Webhook-Signature", signature);
+
+        request.setEntity(
+                new StringEntity(requestBody, ContentType.APPLICATION_JSON)
+        );
+
+        RequestConfig perRequestConfig = RequestConfig.custom()
+                .setResponseTimeout(Timeout.of(requestTimeout))
+                .setConnectionRequestTimeout(Timeout.ofSeconds(5))
+                .setRedirectsEnabled(false)
                 .build();
+
+        request.setConfig(perRequestConfig);
 
         long startedNanos = System.nanoTime();
 
-        HttpResponse<InputStream> response = httpClient.send(
-                request,
-                HttpResponse.BodyHandlers.ofInputStream()
-        );
-
         String responseBody;
+        int statusCode;
 
-        try (InputStream bodyStream = response.body()) {
+        try (ClassicHttpResponse response = httpClient.execute(request)) {
+
+            statusCode = response.getCode();
+
+            responseBody = readResponseBody(response.getEntity());
+        }
+
+        long durationMs = Duration.ofNanos(
+                System.nanoTime() - startedNanos
+        ).toMillis();
+
+        return new DeliveryResponse(
+                statusCode,
+                responseBody,
+                durationMs
+        );
+    }
+
+    private String readResponseBody(
+            org.apache.hc.core5.http.HttpEntity entity
+    ) throws IOException {
+
+        if (entity == null) {
+            return "";
+        }
+
+        try (InputStream bodyStream = entity.getContent()) {
 
             byte[] bytes = bodyStream.readNBytes(
                     MAX_RESPONSE_BYTES + 1
@@ -146,27 +230,24 @@ public class WebhookHttpClient {
                     MAX_RESPONSE_BYTES
             );
 
-            responseBody = new String(
+            String responseBody = new String(
                     bytes,
                     0,
                     length,
-                    StandardCharsets.UTF_8
+                    java.nio.charset.StandardCharsets.UTF_8
             );
 
             if (truncated) {
                 responseBody += "\n[response truncated]";
             }
+
+            return responseBody;
         }
+    }
 
-        long durationMs = Duration.ofNanos(
-                System.nanoTime() - startedNanos
-        ).toMillis();
-
-        return new DeliveryResponse(
-                response.statusCode(),
-                responseBody,
-                durationMs
-        );
+    @PreDestroy
+    public void close() throws IOException {
+        httpClient.close();
     }
 
     public record DeliveryResponse(
