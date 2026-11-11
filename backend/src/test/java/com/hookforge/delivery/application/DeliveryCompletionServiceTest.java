@@ -6,6 +6,7 @@ import com.hookforge.delivery.domain.DeliveryAttempt;
 import com.hookforge.delivery.domain.DeliveryStatus;
 import com.hookforge.delivery.infrastructure.DeliveryAttemptRepository;
 import com.hookforge.delivery.infrastructure.DeliveryRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -28,14 +29,16 @@ class DeliveryCompletionServiceTest {
 
     @Mock
     private DeliveryAttemptRepository attemptRepository;
-
+    @Mock
+    private MeterRegistry meterRegistry;
     private DeliveryCompletionService completionService;
 
     @BeforeEach
     void setUp() {
         completionService = new DeliveryCompletionService(
                 deliveryRepository,
-                attemptRepository
+                attemptRepository,
+                meterRegistry
         );
     }
 
