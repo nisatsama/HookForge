@@ -6,6 +6,7 @@ import com.hookforge.delivery.domain.DeliveryAttempt;
 import com.hookforge.delivery.domain.DeliveryStatus;
 import com.hookforge.delivery.infrastructure.DeliveryAttemptRepository;
 import com.hookforge.delivery.infrastructure.DeliveryRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,13 +23,16 @@ public class DeliveryCompletionService {
 
     private final DeliveryRepository deliveryRepository;
     private final DeliveryAttemptRepository attemptRepository;
+    private final MeterRegistry meterRegistry;
 
     public DeliveryCompletionService(
             DeliveryRepository deliveryRepository,
-            DeliveryAttemptRepository attemptRepository
+            DeliveryAttemptRepository attemptRepository,
+            MeterRegistry meterRegistry
     ) {
         this.deliveryRepository = deliveryRepository;
         this.attemptRepository = attemptRepository;
+        this.meterRegistry = meterRegistry;
     }
 
     @Transactional
@@ -91,25 +95,27 @@ public class DeliveryCompletionService {
                 && statusCode < 300) {
 
             delivery.markSucceeded();
+            meterRegistry.counter("hookforge.deliveries.succeeded").increment();
 
         } else if (retryable) {
 
-            // Count attempts in the current retry/replay cycle,
-            // not the global historical attempt number.
             int cycleAttemptNumber = delivery.getAttemptCount();
 
             if (cycleAttemptNumber >= MAX_ATTEMPTS) {
                 delivery.markDead();
+                meterRegistry.counter("hookforge.deliveries.failed").increment();
             } else {
                 delivery.scheduleRetry(
                         Instant.now().plusSeconds(
                                 calculateBackoff(cycleAttemptNumber)
                         )
                 );
+                meterRegistry.counter("hookforge.deliveries.retried").increment();
             }
 
         } else {
             delivery.markFailed();
+            meterRegistry.counter("hookforge.deliveries.failed").increment();
         }
 
         deliveryRepository.save(delivery);
