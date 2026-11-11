@@ -1,5 +1,7 @@
 package com.hookforge.common.api;
 
+import com.hookforge.delivery.application.DeliveryNotFoundException;
+import com.hookforge.delivery.application.DeliveryReplayNotAllowedException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
 
@@ -131,5 +133,28 @@ public ResponseEntity<ApiError> handleIdempotencyConflict(
             String message,
             String path
     ) {
+    }
+    @ExceptionHandler(DeliveryNotFoundException.class)
+    public ResponseEntity<ApiError> handleDeliveryNotFound(
+            DeliveryNotFoundException exception,
+            HttpServletRequest request
+    ) {
+        return error(
+                HttpStatus.NOT_FOUND,
+                "Delivery not found",
+                request.getRequestURI()
+        );
+    }
+
+    @ExceptionHandler(DeliveryReplayNotAllowedException.class)
+    public ResponseEntity<ApiError> handleDeliveryReplayNotAllowed(
+            DeliveryReplayNotAllowedException exception,
+            HttpServletRequest request
+    ) {
+        return error(
+                HttpStatus.CONFLICT,
+                "Delivery cannot be replayed in its current state",
+                request.getRequestURI()
+        );
     }
 }
