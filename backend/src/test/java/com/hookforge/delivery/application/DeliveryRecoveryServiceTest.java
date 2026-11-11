@@ -36,8 +36,8 @@ class DeliveryRecoveryServiceTest {
 
     @BeforeEach
     void setUp() {
-        long staleSeconds = 0;
-        int batchSize = 0;
+        long staleSeconds = 120;
+        int batchSize = 100;
         recoveryService = new DeliveryRecoveryService(
                 deliveryRepository,
                 attemptRepository,
