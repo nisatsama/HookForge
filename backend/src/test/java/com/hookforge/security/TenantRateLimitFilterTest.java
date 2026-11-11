@@ -97,4 +97,8 @@ class TenantRateLimitFilterTest {
 
         verify(chain, times(2)).doFilter(any(), any());
     }
+    @org.junit.jupiter.api.AfterEach
+    void clearSecurityContext() {
+        SecurityContextHolder.clearContext();
+    }
 }
