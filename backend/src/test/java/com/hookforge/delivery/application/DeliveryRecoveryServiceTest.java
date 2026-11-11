@@ -6,6 +6,7 @@ import com.hookforge.delivery.domain.DeliveryAttempt;
 import com.hookforge.delivery.domain.DeliveryStatus;
 import com.hookforge.delivery.infrastructure.DeliveryAttemptRepository;
 import com.hookforge.delivery.infrastructure.DeliveryRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,11 +36,14 @@ class DeliveryRecoveryServiceTest {
 
     @BeforeEach
     void setUp() {
+        long staleSeconds = 0;
+        int batchSize = 0;
         recoveryService = new DeliveryRecoveryService(
                 deliveryRepository,
                 attemptRepository,
-                120,
-                100
+                staleSeconds,
+                batchSize,
+                new SimpleMeterRegistry()
         );
     }
 
