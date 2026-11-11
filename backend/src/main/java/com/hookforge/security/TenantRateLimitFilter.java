@@ -85,7 +85,7 @@ public class TenantRateLimitFilter extends OncePerRequestFilter {
 
             response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
             response.sendError(
-                    HttpServletResponse.SC_TOO_MANY_REQUESTS,
+                    429,
                     "Tenant request limit exceeded"
             );
             return;
