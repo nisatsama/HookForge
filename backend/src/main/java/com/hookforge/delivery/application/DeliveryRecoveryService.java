@@ -40,7 +40,8 @@ public class DeliveryRecoveryService {
             @Value("${hookforge.delivery.recovery-stale-seconds:120}")
             long staleSeconds,
             @Value("${hookforge.delivery.recovery-batch-size:100}")
-            int batchSize
+            int batchSize,
+            MeterRegistry meterRegistry
     ) {
         if (staleSeconds < 30) {
             throw new IllegalArgumentException(
@@ -126,6 +127,11 @@ public class DeliveryRecoveryService {
             }
 
             deliveryRepository.save(delivery);
+
+            meterRegistry.counter(
+                    "hookforge.deliveries.recovered"
+            ).increment();
+
             recovered++;
         }
 
