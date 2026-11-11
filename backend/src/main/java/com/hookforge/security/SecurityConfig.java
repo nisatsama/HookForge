@@ -20,13 +20,16 @@ public class SecurityConfig {
 
     @Value("${hookforge.cors.allowed-origins:http://localhost:5173}")
     private String allowedOrigins;
-
+    private final TenantRateLimitFilter tenantRateLimitFilter;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     public SecurityConfig(
-            ApiKeyAuthenticationFilter apiKeyAuthenticationFilter
+            ApiKeyAuthenticationFilter apiKeyAuthenticationFilter,
+            TenantRateLimitFilter tenantRateLimitFilter
     ) {
+
         this.apiKeyAuthenticationFilter = apiKeyAuthenticationFilter;
+        this.tenantRateLimitFilter = tenantRateLimitFilter;
     }
 
     @Bean
@@ -55,6 +58,10 @@ public class SecurityConfig {
                 .addFilterBefore(
                         apiKeyAuthenticationFilter,
                         UsernamePasswordAuthenticationFilter.class
+                )
+                .addFilterAfter(
+                        tenantRateLimitFilter,
+                        ApiKeyAuthenticationFilter.class
                 )
                 .build();
     }
