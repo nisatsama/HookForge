@@ -5,6 +5,7 @@ import com.hookforge.delivery.domain.Delivery;
 import com.hookforge.delivery.domain.DeliveryAttempt;
 import com.hookforge.delivery.infrastructure.DeliveryAttemptRepository;
 import com.hookforge.delivery.infrastructure.DeliveryRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -29,6 +30,7 @@ public class DeliveryRecoveryService {
 
     private final DeliveryRepository deliveryRepository;
     private final DeliveryAttemptRepository attemptRepository;
+    private final MeterRegistry meterRegistry;
     private final long staleSeconds;
     private final int batchSize;
 
@@ -56,6 +58,7 @@ public class DeliveryRecoveryService {
         this.attemptRepository = attemptRepository;
         this.staleSeconds = staleSeconds;
         this.batchSize = batchSize;
+        this.meterRegistry = meterRegistry;
     }
 
     @Scheduled(
