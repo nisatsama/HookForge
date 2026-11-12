@@ -73,7 +73,12 @@ public class SecurityConfig {
         configuration.setAllowedOrigins(Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim).filter(origin -> !origin.isEmpty()).toList());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Idempotency-Key"));
+       configuration.setAllowedHeaders(List.of(
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "X-HookForge-Bootstrap-Secret"
+));
         configuration.setExposedHeaders(List.of("Location"));
         configuration.setAllowCredentials(false);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
