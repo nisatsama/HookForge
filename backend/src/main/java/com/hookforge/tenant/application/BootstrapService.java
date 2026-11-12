@@ -1,3 +1,4 @@
+
 package com.hookforge.tenant.application;
 
 import com.hookforge.identity.application.ApiKeyService;
@@ -43,9 +44,7 @@ public class BootstrapService {
             CreateTenantRequest request
     ) {
         if (bootstrapSecret.isBlank()) {
-            throw new IllegalStateException(
-                    "Bootstrap is disabled because no secret is configured"
-            );
+            throw new BootstrapDisabledException();
         }
 
         if (suppliedSecret == null
@@ -53,18 +52,15 @@ public class BootstrapService {
                         bootstrapSecret.getBytes(StandardCharsets.UTF_8),
                         suppliedSecret.getBytes(StandardCharsets.UTF_8)
                 )) {
-            throw new SecurityException("Invalid bootstrap secret");
+            throw new InvalidBootstrapSecretException();
         }
 
         BootstrapState state = bootstrapStateRepository
                 .findByIdForUpdate((short) 1)
-                .orElseThrow(() ->
-                        new IllegalStateException("Bootstrap state is missing"));
+                .orElseThrow(BootstrapDisabledException::new);
 
         if (state.isInitialized() || tenantRepository.count() > 0) {
-            throw new IllegalStateException(
-                    "Bootstrap has already been completed"
-            );
+            throw new BootstrapAlreadyCompletedException();
         }
 
         TenantResponse tenant = tenantService.create(request);
@@ -84,5 +80,17 @@ public class BootstrapService {
             TenantResponse tenant,
             ApiKeyService.CreatedApiKey apiKey
     ) {
+    }
+
+    public static class BootstrapDisabledException
+            extends RuntimeException {
+    }
+
+    public static class InvalidBootstrapSecretException
+            extends RuntimeException {
+    }
+
+    public static class BootstrapAlreadyCompletedException
+            extends RuntimeException {
     }
 }
