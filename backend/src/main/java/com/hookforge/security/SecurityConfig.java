@@ -18,7 +18,7 @@ import org.springframework.security.web.authentication
 @Configuration
 public class SecurityConfig {
 
-    @Value("${hookforge.cors.allowed-origins:http://localhost:5173}")
+  @Value("${hookforge.cors.allowed-origins:http://localhost:5173}")
     private String allowedOrigins;
     private final TenantRateLimitFilter tenantRateLimitFilter;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
