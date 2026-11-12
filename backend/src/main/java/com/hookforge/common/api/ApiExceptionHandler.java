@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import com.hookforge.event.application.IdempotencyConflictException;
 import java.time.Instant;
+import com.hookforge.tenant.application.BootstrapService.BootstrapDisabledException;
+import com.hookforge.tenant.application.BootstrapService.BootstrapAlreadyCompletedException;
+import com.hookforge.tenant.application.BootstrapService.InvalidBootstrapSecretException;
 
 
 @RestControllerAdvice
@@ -23,7 +26,42 @@ public class ApiExceptionHandler {
 
     private static final Logger log =
             LoggerFactory.getLogger(ApiExceptionHandler.class);
+            
+@ExceptionHandler(InvalidBootstrapSecretException.class)
+public ResponseEntity<ApiError> handleInvalidBootstrapSecret(
+        InvalidBootstrapSecretException exception,
+        HttpServletRequest request
+) {
+    return error(
+            HttpStatus.UNAUTHORIZED,
+            "Invalid bootstrap secret",
+            request.getRequestURI()
+    );
+}
 
+@ExceptionHandler(BootstrapAlreadyCompletedException.class)
+public ResponseEntity<ApiError> handleBootstrapAlreadyCompleted(
+        BootstrapAlreadyCompletedException exception,
+        HttpServletRequest request
+) {
+    return error(
+            HttpStatus.CONFLICT,
+            "Bootstrap has already been completed",
+            request.getRequestURI()
+    );
+}
+
+@ExceptionHandler(BootstrapDisabledException.class)
+public ResponseEntity<ApiError> handleBootstrapDisabled(
+        BootstrapDisabledException exception,
+        HttpServletRequest request
+) {
+    return error(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "Bootstrap is disabled or unavailable",
+            request.getRequestURI()
+    );
+}
 @ExceptionHandler(IdempotencyConflictException.class)
 public ResponseEntity<ApiError> handleIdempotencyConflict(
         IdempotencyConflictException exception,
