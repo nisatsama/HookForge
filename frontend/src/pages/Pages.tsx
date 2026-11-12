@@ -35,7 +35,9 @@ export function Deliveries() {
   const [page,setPage]=useState(0),[status,setStatus]=useState(''),[endpointId,setEndpointId]=useState(''),[search,setSearch]=useState('');
   const query=useQuery({queryKey:['deliveries',page,status,endpointId],queryFn:()=>deliveriesApi.list(page,status||undefined,endpointId||undefined)});
   const endpoints=useQuery({queryKey:['endpoints'],queryFn:endpointsApi.list});
-  const rows=query.data?.content?.filter(d=>d.id.includes(search)||d.eventId.includes(search)) ?? [];
+  const rows = query.data?.items?.filter(
+  (d: Delivery) => d.id.includes(search) || d.eventId.includes(search)
+) ?? [];
   return <><PageTitle eyebrow="DELIVERY PIPELINE / HISTORY" title="Delivery attempts" description="Track webhook delivery status, response codes and retry schedules." action={<button className="secondary" onClick={()=>void query.refetch()}><RefreshCw size={15}/> Refresh</button>}/>
     <div className="toolbar"><div className="search-field"><Search size={15}/><input placeholder="Search this page by delivery or event ID" value={search} onChange={e=>setSearch(e.target.value)}/></div>
       <div className="select-wrap"><Filter size={15}/><select value={status} onChange={e=>{setStatus(e.target.value);setPage(0)}}><option value="">All statuses</option>{['PENDING','PROCESSING','RETRYING','SUCCEEDED','FAILED','DEAD'].map(s=><option key={s}>{s}</option>)}</select></div>
