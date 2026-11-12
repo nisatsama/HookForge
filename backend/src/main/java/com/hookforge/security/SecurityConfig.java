@@ -49,9 +49,10 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/actuator/health",
-                                "/actuator/info"
-                        ).permitAll()
+        "/actuator/health",
+        "/actuator/info",
+        "/api/v1/admin/bootstrap"
+).permitAll()
                         .anyRequest().authenticated()
                 )
 
