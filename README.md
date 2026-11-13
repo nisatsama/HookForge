@@ -1,42 +1,159 @@
 # HookForge
 
-HookForge accepts tenant-scoped application events, records each event and its transactional outbox row together, publishes outbox messages to Kafka, creates one delivery per active tenant endpoint, and asynchronously sends signed HTTP requests with retry and replay support.
+**A Multi-Tenant Webhook Delivery Infrastructure Built with Spring Boot, Kafka, and PostgreSQL.**
 
-## What is implemented
+HookForge is a webhook delivery platform that enables applications to register events, subscribe endpoints, and receive reliable, cryptographically signed HTTP notifications.
 
-- Spring Boot API with stateless tenant API-key authentication.
-- PostgreSQL persistence and Flyway migrations.
-- Transactional outbox and Kafka event routing.
-- Tenant-scoped endpoint, event, delivery and API-key management.
-- AES-GCM encrypted endpoint secrets and HMAC-signed requests.
-- React + TypeScript console integrated with the live API.
+It uses a **transactional outbox pattern, Kafka-based event routing, asynchronous delivery processing, and automated retries** to improve delivery reliability while maintaining tenant isolation.
 
-See [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md), [docs/API_CONTRACT.md](docs/API_CONTRACT.md), and [docs/BACKEND_AUDIT.md](docs/BACKEND_AUDIT.md).
+## Key Features
 
-## Start the application
+- **Multi-Tenant Architecture:** Tenant-scoped APIs, endpoint management, event tracking, deliveries, and API-key authentication.
+- **Transactional Outbox:** Persists application events and their corresponding outbox records within a single database transaction.
+- **Event-Driven Processing:** Publishes outbox messages to Apache Kafka for asynchronous event distribution.
+- **Reliable Delivery:** Creates endpoint-specific delivery records and processes HTTP notifications asynchronously.
+- **Retry & Replay:** Supports retry handling and manual replay of previously recorded deliveries.
+- **Request Signing:** Uses HMAC-based signatures to authenticate outgoing webhook payloads.
+- **Encrypted Secrets:** Protects endpoint signing secrets using AES-GCM encryption.
+- **Stateless Authentication:** Uses tenant-scoped API keys for backend authentication.
+- **Developer Console:** React and TypeScript dashboard integrated with the live backend API.
+- **Database Migrations:** Uses Flyway to manage PostgreSQL schema changes.
 
-Requirements: Java 21, Node.js 22.12+, Docker Desktop with Compose, and PowerShell (commands below). Create a 32-byte AES key and set the environment variable for the Compose backend:
+## Architecture
+
+```mermaid
+flowchart TD
+    A[Client Application] -->|Tenant API Key| B[Spring Boot API]
+    B --> C[(PostgreSQL)]
+    B -->|Same Transaction| D[Transactional Outbox]
+    D --> E[Outbox Publisher]
+    E --> F[Apache Kafka]
+    F --> G[Delivery Consumer]
+    G --> C
+    C --> H[Async Delivery Worker]
+    H -->|HMAC Signed HTTP| I[Subscriber Endpoint]
+    H -->|Failure / Retry| J[Retry Processing]
+    J --> H
+    K[React + TypeScript Console] --> B
+```
+
+### Event Processing Flow
+
+1. **Event Ingestion:** A tenant submits an application event through the REST API.
+2. **Atomic Persistence:** The event and its outbox record are saved in the same PostgreSQL transaction.
+3. **Event Publishing:** The outbox publisher forwards pending events to Kafka.
+4. **Delivery Creation:** Kafka consumers identify active subscribed endpoints and create corresponding delivery records.
+5. **Asynchronous Dispatch:** Delivery workers send HTTP POST requests containing the event payload.
+6. **Request Verification:** Outgoing requests include HMAC-based signatures generated using encrypted endpoint secrets.
+7. **Failure Handling:** Failed deliveries enter retry processing, with support for manual replay.
+
+## Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| Backend | Java 21, Spring Boot |
+| API | REST, Spring Security |
+| Messaging | Apache Kafka |
+| Database | PostgreSQL |
+| Database Migrations | Flyway |
+| Security | API Keys, AES-GCM, HMAC |
+| Frontend | React, TypeScript |
+| Infrastructure | Docker, Docker Compose |
+| Testing | JUnit, Mockito, Testcontainers |
+
+## Getting Started
+
+### Prerequisites
+
+- Java 21
+- Node.js 22.12+
+- Docker Desktop with Docker Compose
+- PowerShell (for the commands below)
+
+### 1. Clone the Repository
 
 ```powershell
-$env:HOOKFORGE_ENCRYPTION_KEY = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+git clone https://github.com/nisatsama/HookForge.git
+cd HookForge
+```
+
+### 2. Configure Encryption
+
+HookForge requires a 32-byte AES encryption key for endpoint secret protection.
+
+Generate a key using PowerShell:
+
+```powershell
+$env:HOOKFORGE_ENCRYPTION_KEY = [Convert]::ToBase64String(
+    [Security.Cryptography.RandomNumberGenerator]::GetBytes(32)
+)
+```
+
+Keep this key secure and do not commit it to version control.
+
+### 3. Start the Application
+
+```powershell
 docker compose -f infra/docker-compose.yml up --build
 ```
 
-Open the console at http://localhost:5173. The initial API key must be provisioned through a trusted operator path; the current repository has tenant and key services but no safe self-service bootstrap flow. The admin tenant creation route is authenticated as well. Do not expose database access or create a public bootstrap endpoint to work around this limitation.
+This starts the application using the repository's Docker Compose configuration.
 
-For local development without the frontend container, see the detailed setup guide. The backend requires `HOOKFORGE_ENCRYPTION_KEY`; PostgreSQL, Kafka, CORS, and API URL settings are documented there.
+### 4. Access the Console
+
+Open:
+
+```text
+http://localhost:5173
+```
+
+**Initial Tenant Provisioning:** An initial API key must be provisioned through a trusted operator path. The repository currently does not provide a safe self-service bootstrap workflow. Tenant creation is also authenticated. Do not expose database access or introduce an unauthenticated public bootstrap endpoint to bypass this limitation.
+
+For manual backend and frontend setup, environment configuration, and troubleshooting, refer to [Local Development Guide](docs/LOCAL_DEVELOPMENT.md).
 
 ## Verification
 
+### Backend Tests
+
 ```powershell
 cd backend
+
 ./mvnw clean test
 ./mvnw package
+```
+
+### Frontend Verification
+
+```powershell
 cd ../frontend
+
 npm install
 npm run build
 npm run lint
 npm run test
 ```
 
-Testcontainers integration tests require Docker to be available to the Java process. See [the audit](docs/BACKEND_AUDIT.md) for known backend limitations and open risks.
+**Note:** Testcontainers integration tests require Docker to be available to the Java process.
+
+## Documentation
+
+| Document | Description |
+|---|---|
+| [Local Development](docs/LOCAL_DEVELOPMENT.md) | Environment configuration and local setup |
+| [API Contract](docs/API_CONTRACT.md) | REST API endpoints and request/response contracts |
+| [Backend Audit](docs/BACKEND_AUDIT.md) | Backend implementation review, limitations, and open risks |
+
+## Engineering Focus
+
+HookForge explores practical backend engineering concepts, including:
+
+- Reliable event processing and transactional consistency.
+- Asynchronous communication using message brokers.
+- Multi-tenant data isolation and authentication.
+- Secure webhook signing and secret management.
+- Retry mechanisms and failure recovery.
+- Separation of event ingestion and delivery processing.
+
+---
+
+**Built with Java, Spring Boot, PostgreSQL, and Apache Kafka.**
