@@ -12,6 +12,7 @@ import com.hookforge.endpoint.domain.WebhookEndpoint;
 import com.hookforge.endpoint.infrastructure.EndpointRepository;
 import com.hookforge.event.domain.WebhookEvent;
 import com.hookforge.event.infrastructure.WebhookEventRepository;
+import com.hookforge.tenant.infrastructure.TenantRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,19 +30,22 @@ public class DeliveryPreparationService {
     private final WebhookEventRepository eventRepository;
     private final EndpointRepository endpointRepository;
     private final ObjectMapper objectMapper;
+    private final TenantRepository tenantRepository;
 
     public DeliveryPreparationService(
             DeliveryRepository deliveryRepository,
             DeliveryAttemptRepository attemptRepository,
             WebhookEventRepository eventRepository,
             EndpointRepository endpointRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            TenantRepository tenantRepository
     ) {
         this.deliveryRepository = deliveryRepository;
         this.attemptRepository = attemptRepository;
         this.eventRepository = eventRepository;
         this.endpointRepository = endpointRepository;
         this.objectMapper = objectMapper;
+        this.tenantRepository = tenantRepository;
     }
 
     @Transactional
@@ -56,6 +60,10 @@ public class DeliveryPreparationService {
 
         if (delivery.getStatus() != DeliveryStatus.PROCESSING
                 || !processingToken.equals(delivery.getProcessingToken())) {
+            return Optional.empty();
+        }
+
+        if (tenantRepository.existsByIdAndDemoTrue(delivery.getTenantId())) {
             return Optional.empty();
         }
 

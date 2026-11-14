@@ -53,6 +53,10 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
         SELECT id
         FROM webhook_deliveries
         WHERE status IN ('PENDING', 'RETRYING')
+          AND NOT EXISTS (
+              SELECT 1 FROM tenants t
+              WHERE t.id = webhook_deliveries.tenant_id AND t.is_demo = TRUE
+          )
           AND (
               next_attempt_at IS NULL
               OR next_attempt_at <= CURRENT_TIMESTAMP
@@ -72,6 +76,10 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
             processing_token = :processingToken,
             updated_at = CURRENT_TIMESTAMP
         WHERE id = :deliveryId
+          AND NOT EXISTS (
+              SELECT 1 FROM tenants t
+              WHERE t.id = webhook_deliveries.tenant_id AND t.is_demo = TRUE
+          )
           AND status IN ('PENDING', 'RETRYING')
           AND (
               next_attempt_at IS NULL
@@ -87,6 +95,10 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
         SELECT id
         FROM webhook_deliveries
         WHERE status = 'PROCESSING'
+          AND NOT EXISTS (
+              SELECT 1 FROM tenants t
+              WHERE t.id = webhook_deliveries.tenant_id AND t.is_demo = TRUE
+          )
           AND updated_at < CURRENT_TIMESTAMP
               - (:staleSeconds * INTERVAL '1 second')
         ORDER BY updated_at
@@ -106,6 +118,10 @@ public interface DeliveryRepository extends JpaRepository<Delivery, UUID> {
             SELECT id
             FROM webhook_deliveries
             WHERE status = 'PROCESSING'
+              AND NOT EXISTS (
+                  SELECT 1 FROM tenants t
+                  WHERE t.id = webhook_deliveries.tenant_id AND t.is_demo = TRUE
+              )
               AND updated_at < CURRENT_TIMESTAMP
                   - (:staleSeconds * INTERVAL '1 second')
             ORDER BY updated_at

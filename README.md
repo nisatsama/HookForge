@@ -142,6 +142,7 @@ npm run test
 | [Local Development](docs/LOCAL_DEVELOPMENT.md) | Environment configuration and local setup |
 | [API Contract](docs/API_CONTRACT.md) | REST API endpoints and request/response contracts |
 | [Backend Audit](docs/BACKEND_AUDIT.md) | Backend implementation review, limitations, and open risks |
+| [Demo Deployment and Provisioning](docs/DEMO_DEPLOYMENT.md) | Safe demo tenant provisioning and deployment verification |
 
 ## Engineering Focus
 
@@ -157,3 +158,7 @@ HookForge explores practical backend engineering concepts, including:
 ---
 
 **Built with Java, Spring Boot, PostgreSQL, and Apache Kafka.**
+
+## Public demo workspace
+
+The public console opens a read-only Acme Commerce demo at `/`, with demo endpoints, events and delivery attempts. `/login` retains the existing API-key authentication flow. The demo uses a dedicated tenant marker and demo-only API; worker queries, outbox publishing, event routing and HTTP preparation exclude demo records. No demo API key is provisioned. See [Demo Deployment and Provisioning](docs/DEMO_DEPLOYMENT.md) for Render/Vercel configuration, the operator seed command, and verification steps.

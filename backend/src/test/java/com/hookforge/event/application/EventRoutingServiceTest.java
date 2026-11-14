@@ -6,6 +6,7 @@ import com.hookforge.endpoint.domain.WebhookEndpoint;
 import com.hookforge.endpoint.infrastructure.EndpointRepository;
 import com.hookforge.event.domain.WebhookEvent;
 import com.hookforge.event.infrastructure.WebhookEventRepository;
+import com.hookforge.tenant.infrastructure.TenantRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,6 +35,9 @@ class EventRoutingServiceTest {
 
     @Mock
     private DeliveryService deliveryService;
+
+    @Mock
+    private TenantRepository tenantRepository;
 
     @InjectMocks
     private EventRoutingService eventRoutingService;
@@ -94,6 +98,16 @@ class EventRoutingServiceTest {
                 disabledEndpoint.getId(),
                 tenantId
         );
+    }
+
+    @Test
+    void demoTenantEventsAreNeverRoutedToDeliveryCreation() {
+        when(event.getTenantId()).thenReturn(tenantId);
+        when(tenantRepository.existsByIdAndDemoTrue(tenantId)).thenReturn(true);
+
+        assertEquals(0, eventRoutingService.routeEvent(eventId));
+
+        verifyNoInteractions(endpointRepository, deliveryService);
     }
 
     @Test

@@ -68,6 +68,14 @@ public class EventService {
         return toResponse(event, false);
     }
 
+    public EventResponse getEvent(UUID tenantId, UUID eventId) {
+        WebhookEvent event = eventRepository
+                .findByIdAndTenantId(eventId, tenantId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Event not found"));
+        return toResponse(event, false);
+    }
+
     public EventPageResponse listEvents(UUID tenantId, int page, int size) {
         var events = eventRepository.findAllByTenantId(tenantId,
                 PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));

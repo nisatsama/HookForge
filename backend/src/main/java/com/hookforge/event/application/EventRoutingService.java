@@ -5,6 +5,7 @@ import com.hookforge.endpoint.domain.WebhookEndpoint;
 import com.hookforge.endpoint.infrastructure.EndpointRepository;
 import com.hookforge.event.domain.WebhookEvent;
 import com.hookforge.event.infrastructure.WebhookEventRepository;
+import com.hookforge.tenant.infrastructure.TenantRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,15 +17,18 @@ public class EventRoutingService {
     private final WebhookEventRepository eventRepository;
     private final EndpointRepository endpointRepository;
     private final DeliveryService deliveryService;
+    private final TenantRepository tenantRepository;
 
     public EventRoutingService(
             WebhookEventRepository eventRepository,
             EndpointRepository endpointRepository,
-            DeliveryService deliveryService
+            DeliveryService deliveryService,
+            TenantRepository tenantRepository
     ) {
         this.eventRepository = eventRepository;
         this.endpointRepository = endpointRepository;
         this.deliveryService = deliveryService;
+        this.tenantRepository = tenantRepository;
     }
 
     @Transactional
@@ -35,6 +39,10 @@ public class EventRoutingService {
                                 "Webhook event not found: " + eventId
                         )
                 );
+
+        if (tenantRepository.existsByIdAndDemoTrue(event.getTenantId())) {
+            return 0;
+        }
 
         int createdCount = 0;
 
