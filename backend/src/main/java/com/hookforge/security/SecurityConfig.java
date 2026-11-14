@@ -143,4 +143,15 @@ public class SecurityConfig {
         registration.setEnabled(false);
         return registration;
     }
+    @Bean
+    public FilterRegistrationBean<TenantRateLimitFilter>
+    disableTenantRateLimitFilterServletRegistration(
+            TenantRateLimitFilter filter
+    ) {
+        FilterRegistrationBean<TenantRateLimitFilter> registration =
+                new FilterRegistrationBean<>(filter);
+
+        registration.setEnabled(false);
+        return registration;
+    }
 }
