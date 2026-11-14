@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { setCredential } from '../api/client';
 import { ApiKeys, Dashboard, DeliveryDetail, Deliveries, Events, SettingsPage, SignIn } from '../pages/Pages';
 import { EndpointPage } from '../pages/EndpointPage';
-import { DemoWorkspace } from '../pages/DemoWorkspace';
 
 const nav = [
   { to: '/', label: 'Overview', icon: ChartNoAxesCombined },
@@ -26,7 +25,7 @@ export function App() {
     return () => window.removeEventListener('hookforge:unauthorized', handler);
   }, [token, signOut]);
 
-  if (!token) return <Routes><Route path="/login" element={<SignIn />} /><Route path="*" element={<DemoWorkspace />} /></Routes>;
+  if (!token) return <Routes><Route path="*" element={<SignIn />} /></Routes>;
 
   return <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
     <aside className="sidebar">
