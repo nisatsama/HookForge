@@ -243,7 +243,7 @@ export default function DemoPage() {
             <span className="demo-live-dot" />
             PUBLIC DEMO
           </span>
-          <Link to="/" className="demo-login-button">
+          <Link to="/login" className="demo-login-button">
             <KeyRound size={16} />
             Login with API Key
             <ArrowUpRight size={15} />
@@ -590,7 +590,7 @@ export default function DemoPage() {
               authenticated workspace.
             </p>
           </div>
-          <Link to="/" className="demo-primary-button">
+          <Link to="/login" className="demo-primary-button">
             Login with API Key
             <ArrowUpRight size={16} />
           </Link>
