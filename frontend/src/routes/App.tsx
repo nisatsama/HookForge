@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext';
 import { setCredential } from '../api/client';
 import { ApiKeys, Dashboard, DeliveryDetail, Deliveries, Events, SettingsPage, SignIn } from '../pages/Pages';
 import { EndpointPage } from '../pages/EndpointPage';
+import { useLocation } from 'react-router-dom';
+import DemoPage from '../pages/DemoPage';
 
 const nav = [
   { to: '/', label: 'Overview', icon: ChartNoAxesCombined },
@@ -16,6 +18,7 @@ const nav = [
 ];
 
 export function App() {
+  const location = useLocation();
   const { token, signOut } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
@@ -24,7 +27,9 @@ export function App() {
     window.addEventListener('hookforge:unauthorized', handler);
     return () => window.removeEventListener('hookforge:unauthorized', handler);
   }, [token, signOut]);
-
+if (location.pathname === '/demo') {
+  return <DemoPage />;
+}
   if (!token) return <Routes><Route path="*" element={<SignIn />} /></Routes>;
 
   return <div className={`shell ${collapsed ? 'collapsed' : ''}`}>
