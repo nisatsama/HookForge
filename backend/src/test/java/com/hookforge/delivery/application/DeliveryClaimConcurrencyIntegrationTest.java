@@ -52,7 +52,6 @@ class DeliveryClaimConcurrencyIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-
     @Test
     void twoWorkersMustNotClaimTheSameDelivery() throws Exception {
 
@@ -155,18 +154,5 @@ class DeliveryClaimConcurrencyIntegrationTest {
         } finally {
             executor.shutdownNow();
         }
-    }
-
-    @Test
-    void demoTenantDeliveriesAreNeverClaimedByWorkers() {
-        UUID tenantId=UUID.randomUUID(), endpointId=UUID.randomUUID(), eventId=UUID.randomUUID();
-        jdbcTemplate.update("INSERT INTO tenants (id,name,slug,is_demo) VALUES (?, 'Demo', ?, TRUE)",tenantId,"demo-"+tenantId);
-        jdbcTemplate.update("INSERT INTO webhook_endpoints (id,tenant_id,name,url,secret_hash) VALUES (?,?,'Demo endpoint','https://sink.invalid','not-a-secret')",endpointId,tenantId);
-        jdbcTemplate.update("INSERT INTO webhook_events (id,tenant_id,event_type,payload) VALUES (?,?,'demo.event','{}'::jsonb)",eventId,tenantId);
-        jdbcTemplate.update("INSERT INTO webhook_deliveries (event_id,endpoint_id,tenant_id,status) VALUES (?, ?, ?, 'PENDING')",eventId,endpointId,tenantId);
-
-        var claims=claimService.claimReadyDeliveries(100);
-        assertTrue(claims.stream().noneMatch(claim -> jdbcTemplate.queryForObject("SELECT id FROM webhook_deliveries WHERE event_id=?",UUID.class,eventId).equals(claim.deliveryId())));
-        assertEquals("PENDING",jdbcTemplate.queryForObject("SELECT status FROM webhook_deliveries WHERE event_id=?",String.class,eventId));
     }
 }

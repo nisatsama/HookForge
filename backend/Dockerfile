@@ -14,7 +14,7 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates postgresql-client && \
+RUN apk add --no-cache ca-certificates && \
     addgroup -S hookforge && \
     adduser -S hookforge -G hookforge
 
@@ -32,8 +32,6 @@ RUN keytool -importcert \
 
 COPY --from=build --chown=hookforge:hookforge \
     /workspace/target/hookforge-0.0.1-SNAPSHOT.jar app.jar
-
-COPY --chown=hookforge:hookforge scripts /app/scripts
 
 USER hookforge
 

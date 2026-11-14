@@ -11,6 +11,4 @@ public interface TenantRepository extends JpaRepository<Tenant, UUID> {
     Optional<Tenant> findBySlug(String slug);
 
     boolean existsBySlug(String slug);
-
-    boolean existsByIdAndDemoTrue(UUID id);
 }

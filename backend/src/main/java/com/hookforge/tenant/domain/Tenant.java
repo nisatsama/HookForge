@@ -25,9 +25,6 @@ public class Tenant {
     @Column(nullable = false, length = 20)
     private TenantStatus status = TenantStatus.ACTIVE;
 
-    @Column(name = "is_demo", nullable = false)
-    private boolean demo;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -70,8 +67,6 @@ public class Tenant {
     public TenantStatus getStatus() {
         return status;
     }
-
-    public boolean isDemo() { return demo; }
 
     public Instant getCreatedAt() {
         return createdAt;

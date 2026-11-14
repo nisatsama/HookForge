@@ -19,11 +19,6 @@ public interface OutboxRepository extends JpaRepository<OutboxEvent, UUID> {
             SELECT *
             FROM outbox_events
             WHERE status = 'PENDING'
-              AND NOT EXISTS (
-                  SELECT 1 FROM webhook_events e
-                  JOIN tenants t ON t.id = e.tenant_id
-                  WHERE e.id = outbox_events.event_id AND t.is_demo = TRUE
-              )
             ORDER BY created_at ASC
             LIMIT :batchSize
             FOR UPDATE SKIP LOCKED

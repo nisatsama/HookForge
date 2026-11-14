@@ -11,7 +11,6 @@ import com.hookforge.endpoint.domain.WebhookEndpoint;
 import com.hookforge.endpoint.infrastructure.EndpointRepository;
 import com.hookforge.event.domain.WebhookEvent;
 import com.hookforge.event.infrastructure.WebhookEventRepository;
-import com.hookforge.tenant.infrastructure.TenantRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,9 +40,6 @@ class DeliveryPreparationServiceTest {
     @Mock
     private EndpointRepository endpointRepository;
 
-    @Mock
-    private TenantRepository tenantRepository;
-
     private ObjectMapper objectMapper;
     private DeliveryPreparationService preparationService;
 
@@ -56,23 +52,8 @@ class DeliveryPreparationServiceTest {
                 attemptRepository,
                 eventRepository,
                 endpointRepository,
-                objectMapper,
-                tenantRepository
+                objectMapper
         );
-    }
-
-    @Test
-    void demoTenantDeliveryIsNeverPreparedForHttpDispatch() {
-        UUID tenantId=UUID.randomUUID(), deliveryId=UUID.randomUUID();
-        Delivery delivery=mock(Delivery.class);
-        when(deliveryRepository.findByIdForUpdate(deliveryId)).thenReturn(Optional.of(delivery));
-        when(delivery.getStatus()).thenReturn(DeliveryStatus.PROCESSING);
-        when(delivery.getProcessingToken()).thenReturn(UUID.randomUUID());
-        when(delivery.getTenantId()).thenReturn(tenantId);
-        when(tenantRepository.existsByIdAndDemoTrue(tenantId)).thenReturn(true);
-
-        assertTrue(preparationService.prepare(deliveryId,delivery.getProcessingToken()).isEmpty());
-        verifyNoInteractions(eventRepository,endpointRepository,attemptRepository);
     }
 
     @Test

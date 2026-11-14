@@ -11,7 +11,6 @@ import java.util.Arrays;
 import java.util.List;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.http.HttpMethod;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication
         .UsernamePasswordAuthenticationFilter;
@@ -54,7 +53,6 @@ public class SecurityConfig {
         "/actuator/info",
         "/api/v1/admin/bootstrap"
 ).permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/demo/**").permitAll()
                         .anyRequest().authenticated()
                 )
 
