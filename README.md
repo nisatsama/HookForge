@@ -2,11 +2,11 @@
 
 ### Distributed Webhook Delivery Infrastructure
 
-**A multi-tenant, event-driven webhook delivery platform built with Java, Spring Boot, Apache Kafka, and PostgreSQL.**
+**A multi-tenant, event-driven webhook delivery platform built with Java 21, Spring Boot, Apache Kafka, and PostgreSQL.**
 
-HookForge enables applications to reliably deliver event-driven HTTP notifications to external systems through durable event ingestion, asynchronous processing, persistent retries, cryptographic request signing, and failure recovery.
+HookForge is a backend infrastructure platform that enables applications to reliably deliver event-driven HTTP notifications to external services. It combines durable event ingestion, asynchronous processing, persistent retries, cryptographic request signing, and automated failure recovery into a centralized webhook delivery system.
 
-Instead of making applications manage webhook delivery, retry scheduling, and delivery history themselves, HookForge provides a centralized infrastructure layer designed to handle unreliable external endpoints and asynchronous workloads.
+Rather than requiring individual applications to implement webhook scheduling, retry mechanisms, delivery tracking, and failure handling, HookForge provides a reusable infrastructure layer designed for unreliable external endpoints and distributed workloads.
 
 **[Live Demo](https://hook-forge-oq0xewo00-nisat-s-projects.vercel.app/) · [Backend API](https://hookforge-backend-xkzt.onrender.com/) · [GitHub Repository](https://github.com/nisatsama/HookForge)**
 
@@ -14,7 +14,7 @@ Instead of making applications manage webhook delivery, retry scheduling, and de
 
 ## Architecture
 
-HookForge follows an event-driven architecture built around PostgreSQL as the source of truth and Apache Kafka as the asynchronous messaging layer.
+HookForge uses an event-driven architecture with PostgreSQL as the source of truth and Apache Kafka for asynchronous message distribution.
 
 ```mermaid
 flowchart TD
@@ -33,84 +33,91 @@ flowchart TD
     L[React Developer Console] --> B
 ```
 
-### Core Engineering Concepts
+### Architectural Principles
 
-- **Transactional Outbox Pattern:** Persists application events and corresponding outbox records within the same database transaction, preventing accepted events from being lost during broker publication failures.
-- **Asynchronous Event Processing:** Uses Apache Kafka to decouple event ingestion from downstream delivery processing.
-- **Multi-Tenant Isolation:** Scopes API authentication, endpoints, events, deliveries, and operational queries to individual tenants.
-- **Persistent Delivery State:** Uses PostgreSQL to maintain delivery status, processing ownership, retry schedules, and attempt history.
-- **Failure Recovery:** Recovers abandoned processing work and supports persistent retries and manual replay.
-- **Cryptographic Request Signing:** Signs outgoing webhook requests using HMAC-based signatures.
-- **Secret Protection:** Encrypts stored endpoint signing secrets using AES-GCM.
+- **Transactional Outbox:** Persists business events and corresponding outbox records within the same database transaction, preventing accepted events from being lost during broker publication failures.
+- **Asynchronous Processing:** Uses Kafka to decouple event ingestion from downstream webhook delivery.
+- **Multi-Tenant Isolation:** Enforces tenant-scoped authentication, authorization, resource access, and operational queries.
+- **Database-Backed Coordination:** Uses persistent delivery states and processing ownership to coordinate concurrent workers.
+- **Failure Recovery:** Supports persistent retries, recovery of abandoned processing tasks, and manual replay.
+- **Cryptographic Security:** Uses HMAC-based request signatures and AES-GCM encryption for endpoint signing secrets.
 
 ## Key Features
 
-### 1. Multi-Tenant API Authentication
+### 1. Multi-Tenant Authentication and Authorization
+
 - Tenant-scoped API-key authentication.
-- Hashed API-key storage and revocation support.
+- Hashed API-key storage and revocation.
 - Tenant-aware authorization across protected resources.
-- Rate limiting for API requests.
+- API rate limiting.
 
 ### 2. Event Ingestion and Routing
+
 - REST-based event ingestion.
 - Idempotency-key support to prevent duplicate logical event creation.
-- Request-payload conflict detection for reused idempotency keys.
-- Endpoint subscriptions based on event types.
+- Payload conflict detection when an idempotency key is reused.
+- Event-type-based endpoint subscriptions.
 - Durable event persistence using PostgreSQL.
 
 ### 3. Event-Driven Processing
-- Transactional outbox for reliable event publication.
+
+- Transactional Outbox Pattern for reliable event publication.
 - Kafka-based asynchronous event distribution.
-- Consumer-side duplicate tolerance.
-- Separation of event ingestion and outbound HTTP delivery.
+- Duplicate-tolerant consumer processing.
+- Separation of event ingestion from outbound HTTP delivery.
 
 ### 4. Reliable Webhook Delivery
+
 - Asynchronous HTTP delivery workers.
 - Endpoint-specific delivery records.
-- Persistent delivery status and attempt history.
-- Connection and response timeouts.
-- Processing ownership using database-backed claims and processing tokens.
+- Persistent delivery states and attempt history.
+- Configurable connection and response timeouts.
+- Database-backed delivery claiming and processing tokens.
 - Recovery of abandoned processing work.
 
-### 5. Retry and Replay
+### 5. Retry and Replay Mechanisms
+
 - Persistent retry scheduling.
 - Automatic handling of retryable failures.
 - Configurable retry-related processing policies.
 - Manual replay of eligible deliveries.
-- Delivery history for debugging failed requests.
+- Delivery attempt history for debugging and operational inspection.
 
 ### 6. Webhook Security
+
 - HMAC-based outgoing request signatures.
-- AES-GCM encryption for endpoint secrets.
+- AES-GCM encryption of endpoint signing secrets.
 - Tenant-scoped API authentication.
-- Destination validation to mitigate SSRF risks.
-- Rate limiting and bounded outbound request handling.
+- Destination validation to mitigate SSRF vulnerabilities.
+- Rate limiting and bounded outbound HTTP request handling.
 
 ### 7. Developer Console
-- React and TypeScript dashboard.
-- Endpoint management.
+
+A React and TypeScript dashboard providing:
+
+- Webhook endpoint management.
 - Event and delivery inspection.
 - Delivery attempt visibility.
 - Operational metrics.
-- Public read-only demo mode for exploring the platform without API credentials.
+- Public read-only demo mode.
 
 ---
 
 ## Delivery Lifecycle
 
-A typical event moves through the following stages:
+A typical webhook event passes through the following stages:
 
-1. **Event Ingestion:** A client submits an event through the REST API using its tenant API key and an idempotency key.
-2. **Atomic Persistence:** HookForge stores the event and its corresponding outbox record in one PostgreSQL transaction.
+1. **Event Ingestion:** A client submits an event using its tenant API key and an idempotency key.
+2. **Atomic Persistence:** The event and corresponding outbox record are persisted in a single PostgreSQL transaction.
 3. **Broker Publication:** The outbox publisher forwards pending events to Apache Kafka.
 4. **Delivery Creation:** The consumer identifies subscribed endpoints and creates endpoint-specific delivery records.
-5. **Delivery Claiming:** Workers claim eligible deliveries while preventing concurrent ownership.
-6. **HTTP Dispatch:** Workers send signed HTTP POST requests to registered endpoints.
-7. **Outcome Recording:** HookForge records the HTTP response, execution duration, and delivery outcome.
-8. **Retry and Recovery:** Retryable failures are rescheduled, while abandoned processing work can be recovered.
+5. **Worker Coordination:** Delivery workers claim eligible records while preventing concurrent ownership.
+6. **HTTP Dispatch:** Workers send signed HTTP POST requests to registered webhook endpoints.
+7. **Outcome Recording:** HTTP responses, execution duration, and delivery outcomes are persisted.
+8. **Retry and Recovery:** Retryable failures are rescheduled, and abandoned processing tasks can be recovered.
 9. **Operational Inspection:** Developers inspect delivery history and manually replay eligible failures.
 
-**Delivery semantics:** HookForge is designed around at-least-once processing. Duplicate publication or ambiguous HTTP outcomes can result in repeated delivery attempts. Consumers should use stable event identifiers to implement their own deduplication.
+**Delivery semantics:** HookForge follows an at-least-once processing model. Duplicate publication or ambiguous HTTP outcomes can result in repeated delivery attempts. Downstream consumers should use stable event identifiers to implement deduplication.
 
 ---
 
@@ -140,20 +147,20 @@ A typical event moves through the following stages:
 
 **Explore HookForge without creating an account.**
 
-The public demo provides a read-only view of pre-provisioned sample data, allowing developers and reviewers to explore the dashboard and understand the delivery workflow.
+The public demo provides a read-only interface with pre-provisioned sample data, allowing developers and reviewers to explore the dashboard and understand the webhook delivery workflow.
 
-[Open HookForge Live Demo](https://hook-forge-oq0xewo00-nisat-s-projects.vercel.app/)
+**[Launch HookForge Demo](https://hook-forge-oq0xewo00-nisat-s-projects.vercel.app/)**
 
-### Demo Architecture and Isolation
+### Demo Isolation and Security
 
-- The public demo uses dedicated `/api/v1/demo/**` backend endpoints.
-- Demo data belongs to a separately configured demo tenant.
-- Demo requests cannot access authenticated tenant resources.
-- The demo is read-only and does not trigger actual webhook delivery.
-- Demo fixtures are excluded from normal event ingestion, Kafka routing, delivery claims, and recovery processing.
-- Public demo endpoints are rate-limited.
+- Dedicated `/api/v1/demo/**` backend endpoints.
+- Separately configured demo tenant.
+- No access to authenticated tenant resources.
+- Read-only interactions without triggering actual webhook deliveries.
+- Demo fixtures excluded from normal event ingestion, Kafka routing, delivery claims, and recovery processing.
+- Rate-limited public demo endpoints.
 
-The authenticated application remains available through the login interface for API-key-based access.
+The authenticated application remains accessible through the login interface for API-key-based access.
 
 ---
 
@@ -164,7 +171,7 @@ The authenticated application remains available through the login interface for 
 - Java 21
 - Node.js 22.12+
 - Docker Desktop with Docker Compose
-- PowerShell (for the commands below)
+- PowerShell (commands below)
 
 ### 1. Clone the Repository
 
@@ -175,7 +182,7 @@ cd HookForge
 
 ### 2. Configure Environment Variables
 
-HookForge requires a 32-byte AES encryption key for protecting endpoint signing secrets.
+HookForge requires a 32-byte AES encryption key to protect stored endpoint signing secrets.
 
 Generate one using PowerShell:
 
@@ -187,9 +194,9 @@ $env:HOOKFORGE_ENCRYPTION_KEY = [Convert]::ToBase64String(
 
 Keep the generated key secure. Never commit encryption keys, API keys, database credentials, or other secrets to version control.
 
-Configure the remaining environment variables according to the local development guide.
+Configure the remaining environment variables using the local development guide.
 
-### 3. Start the Infrastructure and Application
+### 3. Start the Application
 
 From the repository root:
 
@@ -206,9 +213,9 @@ This starts the services configured in the Docker Compose environment.
 | Frontend | http://localhost:5173 |
 | Backend | http://localhost:8080 |
 
-**Tenant provisioning:** The application requires a trusted operator provisioning path for initial tenant creation and API-key issuance. Do not expose database access or introduce an unauthenticated public bootstrap endpoint.
+**Tenant provisioning:** Initial tenant creation and API-key issuance require a trusted operator provisioning path. Public unauthenticated bootstrap endpoints and direct public database access are not intended.
 
-For detailed environment configuration and troubleshooting, see [Local Development Guide](docs/LOCAL_DEVELOPMENT.md).
+For environment configuration and troubleshooting, refer to [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md).
 
 ---
 
@@ -236,9 +243,9 @@ npm run lint
 npm run test
 ```
 
-### Engineering Scenarios
+### Engineering Scenarios Covered
 
-The test suite covers important backend correctness and failure-handling scenarios, including:
+The test suite addresses important backend correctness and failure-handling scenarios:
 
 - API-key authentication and tenant isolation.
 - Transactional outbox consistency.
@@ -297,18 +304,26 @@ The backend follows a modular architecture organized around business capabilitie
 
 ---
 
-## Engineering Focus
+## Engineering Challenges and Design Decisions
 
-HookForge explores practical distributed systems and backend infrastructure challenges:
+HookForge explores several practical distributed systems and backend engineering challenges:
 
-- Maintaining consistency between database transactions and asynchronous message publication.
-- Designing idempotent event ingestion and duplicate-tolerant consumers.
-- Coordinating concurrent workers through database-backed processing claims.
-- Recovering abandoned work after application failures.
-- Implementing persistent retry and replay workflows.
-- Securing multi-tenant APIs and outbound webhook requests.
-- Separating authoritative database state from asynchronous message transport.
-- Building observable and auditable delivery workflows.
+| Challenge | Engineering Approach |
+|---|---|
+| Database-message consistency | Transactional Outbox Pattern |
+| Duplicate event ingestion | Idempotency keys and payload conflict detection |
+| Asynchronous workloads | Apache Kafka |
+| Concurrent worker execution | Database-backed processing claims |
+| Worker crashes | Abandoned-task recovery |
+| Unreliable external endpoints | Persistent retries and replay |
+| Request authenticity | HMAC-SHA256 signatures |
+| Secret protection | AES-GCM encryption |
+| Multi-tenant security | Tenant-scoped authentication and authorization |
+| Operational debugging | Persistent delivery and attempt history |
+
+These design decisions focus on maintaining consistency, handling partial failures, coordinating concurrent workloads, and making asynchronous delivery observable and recoverable.
+
+---
 
 ## Documentation
 
@@ -322,7 +337,7 @@ HookForge explores practical distributed systems and backend infrastructure chal
 
 ## Project Links
 
-- **GitHub:** https://github.com/nisatsama/HookForge
+- **GitHub Repository:** https://github.com/nisatsama/HookForge
 - **Live Frontend:** https://hook-forge-oq0xewo00-nisat-s-projects.vercel.app/
 - **Backend Deployment:** https://hookforge-backend-xkzt.onrender.com/
 
@@ -330,4 +345,4 @@ HookForge explores practical distributed systems and backend infrastructure chal
 
 **HookForge — Distributed Webhook Delivery Infrastructure**
 
-*Built with Java, Spring Boot, Apache Kafka, PostgreSQL, React, and TypeScript.*
+*Built with Java 21, Spring Boot, Apache Kafka, PostgreSQL, React, and TypeScript.*
